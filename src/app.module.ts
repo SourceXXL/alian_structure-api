@@ -28,6 +28,7 @@ import { ComplianceModule } from "./compliance/compliance.module";
 import { SocialTradingModule } from "./social-trading/social-trading.module";
 import { PortfolioModule } from "./portfolio/portfolio.module";
 import { DeFiModule } from "./defi/defi.module";
+import { StellarSorobanModule } from "./stellar-soroban/stellar-soroban.module";
 
 import { User } from "./user/entities/user.entity";
 import { EmailVerification } from "./auth/entities/email-verification.entity";
@@ -172,6 +173,7 @@ import { StakingModule } from "./staking/staking.module";
     WebSocketModule,
     PortfolioModule,
     DeFiModule,
+    StellarSorobanModule,
     ObservabilityModule,
     IndexerModule,
     AuditModule,
