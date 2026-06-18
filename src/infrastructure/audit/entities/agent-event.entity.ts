@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from "typeorm";
-import { User } from "../../../core/user/entities/user.entity";
+import { User } from "src/core/user/entities/user.entity";
 
 export enum AgentEventType {
   CREATED = "created",

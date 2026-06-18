@@ -1,7 +1,7 @@
 // src/oracle/submission-verifier.service.ts
 
 import { Injectable, Logger } from "@nestjs/common";
-import { AuditLogService } from "../../infrastructure/audit/audit-log.service";
+import { AuditLogService } from "src/infrastructure/audit/audit-log.service";
 
 interface OnChainSubmission {
   id: string;
