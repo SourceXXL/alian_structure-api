@@ -1,5 +1,5 @@
 import { Controller, Post, Body, Req, UseGuards, Headers } from '@nestjs/common';
-import { JwtAuthGuard } from '../../core/auth/jwt.guard';
+import { JwtAuthGuard } from 'src/core/auth/jwt.guard';
 import { TradeLockService } from './trade-lock.service';
 
 @Controller('trading')

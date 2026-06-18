@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { User } from "../../../core/user/entities/user.entity";
+import { User } from "src/core/user/entities/user.entity";
 
 export enum StrategyType {
   HIGHEST_YIELD = "highest_yield",

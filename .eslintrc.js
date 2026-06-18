@@ -21,5 +21,16 @@ module.exports = {
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     "@typescript-eslint/no-namespace": "off",
+    'no-restricted-imports': [
+      'warn',
+      {
+        patterns: [
+          {
+            group: ['../../*'],
+            message: 'Use src/ absolute imports instead of relative parent imports crossing module boundaries.',
+          },
+        ],
+      },
+    ],
   },
 };

@@ -27,7 +27,7 @@ import { PortfolioModule } from "./investment/portfolio/portfolio.module";
 import { RiskManagementModule } from "./investment/risk-management/risk-management.module";
 
 // Modules – defi
-import { DeFiModule } from "./defi/defi/defi.module";
+import { DeFiModule } from "./defi/defi.module";
 
 // Modules – growth
 import { AlertsModule } from "./growth/alerts/alerts.module";
@@ -56,11 +56,11 @@ import { PerformanceMetric } from "./investment/portfolio/entities/performance-m
 import { BacktestResult } from "./investment/portfolio/entities/backtest-result.entity";
 
 // DeFi entities
-import { DeFiPosition } from "./defi/defi/entities/defi-position.entity";
-import { DeFiYieldRecord } from "./defi/defi/entities/defi-yield-record.entity";
-import { DeFiTransaction } from "./defi/defi/entities/defi-transaction.entity";
-import { DeFiYieldStrategy } from "./defi/defi/entities/defi-yield-strategy.entity";
-import { DeFiRiskAssessment } from "./defi/defi/entities/defi-risk-assessment.entity";
+import { DeFiPosition } from "./defi/entities/defi-position.entity";
+import { DeFiYieldRecord } from "./defi/entities/defi-yield-record.entity";
+import { DeFiTransaction } from "./defi/entities/defi-transaction.entity";
+import { DeFiYieldStrategy } from "./defi/entities/defi-yield-strategy.entity";
+import { DeFiRiskAssessment } from "./defi/entities/defi-risk-assessment.entity";
 
 // Alerts entities
 import { Alert } from "./growth/alerts/entities/alert.entity";

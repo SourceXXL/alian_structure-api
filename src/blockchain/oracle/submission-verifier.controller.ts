@@ -2,7 +2,7 @@
 
 import { Controller, Get, UseGuards } from "@nestjs/common";
 import { SubmissionVerifierService } from "./submission-verifier.service";
-import { AuditLogService } from "../../infrastructure/audit/audit-log.service";
+import { AuditLogService } from "src/infrastructure/audit/audit-log.service";
 
 @Controller("verifier")
 export class SubmissionVerifierController {

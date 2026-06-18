@@ -14,7 +14,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as speakeasy from "speakeasy";
 import * as qrcode from "qrcode";
 import { EmailService } from "./email.service";
-import { User } from "../../core/user/entities/user.entity";
+import { User } from "src/core/user/entities/user.entity";
 import { RefreshToken, TwoFactorAuth, TwoFactorType, TwoFactorStatus } from "./entities/auth.entity";
 import { LoginDto, RegisterDto, RefreshTokenDto, TwoFactorVerifyDto } from "./dto/auth.dto";
 import { TwoFactorSetupDto } from "./dto/kyc.dto";
