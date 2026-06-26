@@ -175,6 +175,7 @@ Fine-grained control over compute jobs with role-based access control:
 Configuration & deployment
 --------------------------
 - Environment variables drive provider keys, DB endpoints, wallet signing keys, and feature flags.
+- Rate-limit tiers are configurable with `RATE_LIMIT_FREE_PER_MINUTE`, `RATE_LIMIT_PAID_PER_MINUTE`, and `RATE_LIMIT_ENTERPRISE_PER_MINUTE`.
 - Use the simulator environment for safe, deterministic testing before enabling live on‑chain submission.
 - Run behind an API gateway for rate limiting and authentication; use TLS for all external endpoints.
 - Store signing keys in a KMS and follow key rotation practices.

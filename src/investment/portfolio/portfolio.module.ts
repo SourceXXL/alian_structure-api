@@ -2,6 +2,10 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bull";
 
+// Modules
+import { AlertsModule } from "src/growth/alerts/alerts.module";
+import { DeFiModule } from "src/defi/defi.module";
+
 // Entities
 import { Portfolio } from "./entities/portfolio.entity";
 import { PortfolioAsset } from "./entities/portfolio-asset.entity";
@@ -21,6 +25,9 @@ import { MLPredictionService } from "./services/ml-prediction.service";
 import { PortfolioConstraintService } from "./services/portfolio-constraint.service";
 import { AuditLogService } from "src/infrastructure/audit/audit-log.service";
 import { TradingTransactionService } from "./services/trading-transaction.service";
+
+// Processors
+import { RebalancingProcessor } from "./processors/rebalancing.processor";
 
 // Controllers
 import { PortfolioController } from "./portfolio.controller";
@@ -57,6 +64,8 @@ import { PortfolioOwnerGuard } from "./guards/portfolio-owner.guard";
         name: "ml-predictions",
       },
     ),
+    AlertsModule,
+    DeFiModule,
   ],
   providers: [
     PortfolioService,
@@ -68,6 +77,7 @@ import { PortfolioOwnerGuard } from "./guards/portfolio-owner.guard";
     AuditLogService,
     TradingTransactionService,
     PortfolioOwnerGuard,
+    RebalancingProcessor,
   ],
   controllers: [
     PortfolioController,

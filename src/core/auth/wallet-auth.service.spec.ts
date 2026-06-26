@@ -95,6 +95,7 @@ describe("WalletAuthService", () => {
     referredById: null,
     referredBy: null,
     referrals: [],
+        socialAccounts: [],
   };
 
   const mockChallengeService = {

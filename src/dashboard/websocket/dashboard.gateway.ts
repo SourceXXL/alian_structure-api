@@ -11,6 +11,8 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Logger, UseFilters, UsePipes, ValidationPipe } from "@nestjs/common";
+import { SpanStatusCode } from "@opentelemetry/api";
+import { createSpan, extractContext } from "../../config/tracing";
 import { JwtService } from "@nestjs/jwt";
 import { ConnectionManagerService } from "./services/connection-manager.service";
 import { EventBufferService } from "./services/event-buffer.service";
@@ -61,6 +63,17 @@ export class DashboardGateway
   }
 
   async handleConnection(client: Socket) {
+    // Extract trace context from handshake headers for distributed tracing
+    const carrier = client.handshake.headers as Record<string, string>;
+    await createSpan(`ws.connect ${client.id}`, async (span) => {
+      span.setAttribute("ws.client_id", client.id);
+      span.setAttribute("ws.namespace", "/dashboard");
+      const traceParent = carrier["traceparent"];
+      if (traceParent) span.setAttribute("ws.traceparent", traceParent);
+    }).catch(() => {
+      /* non-fatal */
+    });
+
     try {
       // Authenticate the client
       const token = this.extractToken(client);
@@ -140,6 +153,14 @@ export class DashboardGateway
   }
 
   async handleDisconnect(client: Socket) {
+    createSpan(`ws.disconnect ${client.id}`, async (span) => {
+      span.setAttribute("ws.client_id", client.id);
+      span.setAttribute("ws.namespace", "/dashboard");
+      span.setStatus({ code: SpanStatusCode.OK });
+    }).catch(() => {
+      /* non-fatal */
+    });
+
     const connectionInfo = this.connectionManager.getConnectionInfo(client.id);
 
     if (connectionInfo) {

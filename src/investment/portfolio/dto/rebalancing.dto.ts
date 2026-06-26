@@ -57,6 +57,15 @@ export class ExecuteRebalancingDto {
   dryRun?: boolean;
 }
 
+export class ScheduleRebalancingDto {
+  @IsEnum(["daily", "weekly", "monthly", "custom"])
+  frequency: "daily" | "weekly" | "monthly" | "custom";
+
+  @IsOptional()
+  @IsString()
+  cron?: string;
+}
+
 export class CancelRebalancingDto {
   @IsString()
   rebalancingEventId: string;

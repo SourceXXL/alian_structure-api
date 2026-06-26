@@ -9,7 +9,6 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { join } from "path";
 import { APP_GUARD } from "@nestjs/core";
-import { ThrottlerModule } from "@nestjs/throttler";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { validate } from "class-validator";
 import { plainToInstance } from "class-transformer";
@@ -55,6 +54,7 @@ import { Wallet } from "./core/auth/entities/wallet.entity";
 // Oracle entities
 import { SignedPayload } from "./blockchain/oracle/entities/signed-payload.entity";
 import { SubmissionNonce } from "./blockchain/oracle/entities/submission-nonce.entity";
+import { PriceRecord } from "./blockchain/oracle/entities/price-record.entity";
 
 // Audit entities
 import { AgentEvent } from "./infrastructure/audit/entities/agent-event.entity";
@@ -84,9 +84,13 @@ import { Alert } from "./growth/alerts/entities/alert.entity";
 import { AlertTriggerLog } from "./growth/alerts/entities/alert-trigger-log.entity";
 import { AlertPreference } from "./growth/alerts/entities/alert-preference.entity";
 
+// Discovery entities
+import { AgentReview } from "./discovery/reviews/entities/agent-review.entity";
+import { AgentReviewsModule } from "./discovery/reviews/agent-reviews.module";
+
 // Guards
 import { APP_FILTER } from "@nestjs/core";
-import { ThrottlerUserIpGuard } from "./common/guard/throttler.guard";
+import { QuotaGuard } from "./common/guard/quota.guard";
 import { RolesGuard } from "./common/guard/roles.guard";
 import { KycGuard } from "./common/guard/kyc.guard";
 import { StrategyAuthGuard } from "./core/auth/guards/strategy-auth.guard";
@@ -145,6 +149,7 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
             Wallet,
             SignedPayload,
             SubmissionNonce,
+            PriceRecord,
             AgentEvent,
             ComputeResult,
             ProvenanceRecord,
@@ -165,6 +170,7 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
             Alert,
             AlertTriggerLog,
             AlertPreference,
+            AgentReview,
           ],
           synchronize: true,
           logging: true,
@@ -181,15 +187,6 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
 
     EventEmitterModule.forRoot(),
 
-    ThrottlerModule.forRoot({
-      throttlers: [
-        { name: "global", ttl: 60_000, limit: 100 },
-        { name: "auth", ttl: 60_000, limit: 5 },
-        { name: "trading", ttl: 60_000, limit: 20 },
-        { name: "oracle", ttl: 60_000, limit: 10 },
-      ],
-    }),
-
     AuthModule,
     UserModule,
     ProfileModule,
@@ -202,6 +199,7 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
     HealthModule,
     ObservabilityModule,
     ProfilingModule,
+    AgentReviewsModule,
   ],
 
   controllers: [AppController],
@@ -218,7 +216,7 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
     },
     {
       provide: APP_GUARD,
-      useClass: ThrottlerUserIpGuard,
+      useClass: QuotaGuard,
     },
     {
       provide: APP_GUARD,

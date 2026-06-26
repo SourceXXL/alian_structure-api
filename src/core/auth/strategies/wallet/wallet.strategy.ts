@@ -18,6 +18,9 @@ import {
 import { ChallengeService } from "src/core/auth/challenge.service";
 import { User } from "src/core/user/entities/user.entity";
 import { Wallet } from "src/core/auth/entities/wallet.entity";
+import {
+  resolveRateLimitTierFromRole,
+} from "src/config/quota.config";
 
 /**
  * Wallet-based authentication strategy
@@ -98,6 +101,7 @@ export class WalletStrategy implements AuthStrategy {
       address: recoveredAddress.toLowerCase(),
       email: user?.emailVerified ? user.email : undefined,
       role: user?.role || "user",
+      tier: resolveRateLimitTierFromRole(user?.role),
       iat: Math.floor(Date.now() / 1000),
       type: "wallet",
     };
@@ -112,6 +116,7 @@ export class WalletStrategy implements AuthStrategy {
         address: recoveredAddress.toLowerCase(),
         email: user?.emailVerified ? user.email : undefined,
         role: user?.role || "user",
+        tier: resolveRateLimitTierFromRole(user?.role),
         type: "wallet",
       },
     };

@@ -8,8 +8,11 @@ import { NonceManagementService } from "./services/nonce-management.service";
 import { SubmitterService } from "./services/submitter.service";
 import { SubmissionBatchService } from "./services/submission-batch.service";
 import { SubmissionVerifierService } from "./submission-verifier.service";
+import { PriceFeedService } from "./services/price-feed.service";
+import { PriceFeedController } from "./price-feed.controller";
 import { SignedPayload } from "./entities/signed-payload.entity";
 import { SubmissionNonce } from "./entities/submission-nonce.entity";
+import { PriceRecord } from "./entities/price-record.entity";
 import { AuditModule } from "src/infrastructure/audit/audit.module";
 
 /**
@@ -18,11 +21,11 @@ import { AuditModule } from "src/infrastructure/audit/audit.module";
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SignedPayload, SubmissionNonce]),
+    TypeOrmModule.forFeature([SignedPayload, SubmissionNonce, PriceRecord]),
     ConfigModule,
     AuditModule,
   ],
-  controllers: [OracleController],
+  controllers: [OracleController, PriceFeedController],
   providers: [
     OracleService,
     PayloadSigningService,
@@ -30,6 +33,7 @@ import { AuditModule } from "src/infrastructure/audit/audit.module";
     SubmitterService,
     SubmissionBatchService,
     SubmissionVerifierService,
+    PriceFeedService,
   ],
   exports: [
     OracleService,
@@ -38,6 +42,7 @@ import { AuditModule } from "src/infrastructure/audit/audit.module";
     SubmitterService,
     SubmissionBatchService,
     SubmissionVerifierService,
+    PriceFeedService,
   ],
 })
 export class OracleModule {}

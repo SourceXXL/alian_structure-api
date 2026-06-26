@@ -1,5 +1,4 @@
 import { SetMetadata, applyDecorators } from "@nestjs/common";
-import { Throttle } from "@nestjs/throttler";
 
 /**
  * Apply a named throttle configuration to a controller or handler.
@@ -29,7 +28,14 @@ const TIER_CONFIG: Record<SensitiveTier, { limit: number; ttl: number }> = {
 
 export function SensitiveRateLimit(tier: SensitiveTier = "default") {
   const { limit, ttl } = TIER_CONFIG[tier];
-  return applyDecorators(Throttle({ default: { limit, ttl } }));
+  return applyDecorators(
+    RateLimit({
+      level: tier,
+      limit,
+      windowMs: ttl,
+      burst: limit,
+    }),
+  );
 }
 
 /**

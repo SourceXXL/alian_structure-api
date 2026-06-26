@@ -57,6 +57,9 @@ export interface AuthUser {
   /** User role */
   role: string;
 
+  /** Rate-limit tier derived from the account or API key */
+  tier?: string;
+
   /** Authentication type */
   type: AuthType;
 }
@@ -79,6 +82,9 @@ export interface AuthPayload {
 
   /** User role */
   role: string;
+
+  /** Rate-limit tier derived from the account or API key */
+  tier?: string;
 
   /** User roles array */
   roles?: string[];

@@ -16,6 +16,10 @@ import {
   ApiKeyCredentials,
 } from "../interfaces/auth-strategy.interface";
 import { User } from "src/core/user/entities/user.entity";
+import {
+  RateLimitTier,
+  resolveRateLimitTierFromRole,
+} from "src/config/quota.config";
 
 /**
  * API Key metadata
@@ -24,6 +28,7 @@ interface ApiKeyMetadata {
   userId: string;
   name: string;
   permissions: string[];
+  tier: RateLimitTier;
   createdAt: Date;
   expiresAt?: Date;
   lastUsedAt?: Date;
@@ -60,12 +65,14 @@ export class ApiKeyStrategy implements AuthStrategy {
           userId: string;
           name: string;
           permissions: string[];
+          tier?: RateLimitTier;
         }> = JSON.parse(systemApiKeys);
-        keys.forEach(({ key, userId, name, permissions }) => {
+        keys.forEach(({ key, userId, name, permissions, tier }) => {
           this.apiKeys.set(key, {
             userId,
             name,
             permissions,
+            tier: tier ?? "enterprise",
             createdAt: new Date(),
           });
         });
@@ -119,6 +126,8 @@ export class ApiKeyStrategy implements AuthStrategy {
       email: user.email,
       username: user.username,
       role: user.role || "service",
+      tier:
+        keyMetadata.tier || resolveRateLimitTierFromRole(user.role, "api-key"),
       iat: Math.floor(Date.now() / 1000),
       type: "api-key",
     };
@@ -138,6 +147,9 @@ export class ApiKeyStrategy implements AuthStrategy {
         email: user.email,
         username: user.username,
         role: user.role || "service",
+        tier:
+          keyMetadata.tier ||
+          resolveRateLimitTierFromRole(user.role, "api-key"),
         type: "api-key",
       },
     };
@@ -179,6 +191,7 @@ export class ApiKeyStrategy implements AuthStrategy {
     name: string,
     permissions: string[] = ["read"],
     expiresInDays?: number,
+    tier: RateLimitTier = "enterprise",
   ): { key: string; secret: string } {
     const key = `sk_${crypto.randomBytes(24).toString("hex")}`;
     const secret = crypto.randomBytes(32).toString("hex");
@@ -187,6 +200,7 @@ export class ApiKeyStrategy implements AuthStrategy {
       userId,
       name,
       permissions,
+      tier,
       createdAt: new Date(),
       expiresAt: expiresInDays
         ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
@@ -228,6 +242,7 @@ export class ApiKeyStrategy implements AuthStrategy {
           id: `key_${index++}`,
           name: metadata.name,
           permissions: metadata.permissions,
+          tier: metadata.tier,
           createdAt: metadata.createdAt,
           expiresAt: metadata.expiresAt,
           lastUsedAt: metadata.lastUsedAt,

@@ -11,6 +11,7 @@ interface JwtPayload {
   email?: string;
   username?: string;
   role?: string;
+  tier?: string;
   jti?: string; // JWT ID for replay attack prevention
   twoFactorVerified?: boolean; // whether 2FA was completed for this session
   iat?: number;
@@ -69,6 +70,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: payload.email,
         username: payload.username,
         role: payload.role || "user",
+        tier: payload.tier,
         jti: payload.jti,
         twoFactorVerified: payload.twoFactorVerified ?? false,
         exp: payload.exp,
@@ -79,6 +81,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         address: payload.address,
         email: payload.email,
         role: payload.role || "user",
+        tier: payload.tier,
         roles: payload.role ? [payload.role] : ["user"],
         jti: payload.jti,
         twoFactorVerified: payload.twoFactorVerified ?? false,

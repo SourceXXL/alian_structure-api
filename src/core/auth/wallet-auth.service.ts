@@ -22,11 +22,13 @@ import {
   ProvenanceAction,
   ProvenanceStatus,
 } from "src/infrastructure/audit/entities/provenance-record.entity";
+import { resolveRateLimitTierFromRole } from "src/config/quota.config";
 
 export interface AuthPayload {
   address: string;
   email?: string;
   role?: string;
+  tier?: string;
   roles?: string[];
   twoFactorVerified?: boolean;
   iat: number;
@@ -124,6 +126,7 @@ export class WalletAuthService {
         address: normalized,
         email: user?.emailVerified ? user.email : undefined,
         role: user?.role || "user",
+        tier: resolveRateLimitTierFromRole(user?.role),
         iat: Math.floor(Date.now() / 1000),
       };
 
@@ -196,13 +199,14 @@ export class WalletAuthService {
     user: User | null,
     twoFactorVerified: boolean,
   ): string {
-    const payload: AuthPayload = {
-      address: address.toLowerCase(),
-      email: user?.emailVerified ? user.email : undefined,
-      role: user?.role || "user",
-      twoFactorVerified,
-      iat: Math.floor(Date.now() / 1000),
-    };
+      const payload: AuthPayload = {
+        address: address.toLowerCase(),
+        email: user?.emailVerified ? user.email : undefined,
+        role: user?.role || "user",
+        tier: resolveRateLimitTierFromRole(user?.role),
+        twoFactorVerified,
+        iat: Math.floor(Date.now() / 1000),
+      };
 
     return this.jwtService.sign(payload);
   }

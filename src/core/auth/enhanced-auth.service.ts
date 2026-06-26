@@ -18,6 +18,7 @@ import * as speakeasy from "speakeasy";
 import * as qrcode from "qrcode";
 import { EmailService } from "./email.service";
 import { User } from "src/core/user/entities/user.entity";
+import { resolveRateLimitTierFromRole } from "src/config/quota.config";
 import {
   RefreshToken,
   TwoFactorAuth,
@@ -62,7 +63,7 @@ export class EnhancedAuthService {
   ): Promise<{
     accessToken: string;
     refreshToken: string;
-    user: Partial<User>;
+    user: Partial<User> & { tier?: string };
     requiresTwoFactor?: boolean;
   }> {
     const { email, password, username, referralCode } = registerDto;
@@ -124,6 +125,7 @@ export class EnhancedAuthService {
         email: user.email,
         username: user.username,
         role: user.role,
+        tier: resolveRateLimitTierFromRole(user.role),
         kycStatus: user.kycStatus,
       },
       requiresTwoFactor: false,
@@ -137,7 +139,7 @@ export class EnhancedAuthService {
   ): Promise<{
     accessToken: string;
     refreshToken: string;
-    user: Partial<User>;
+    user: Partial<User> & { tier?: string };
     requiresTwoFactor?: boolean;
   }> {
     const { email, password } = loginDto;
@@ -187,6 +189,7 @@ export class EnhancedAuthService {
         email: user.email,
         username: user.username,
         role: user.role,
+        tier: resolveRateLimitTierFromRole(user.role),
         kycStatus: user.kycStatus,
       },
       requiresTwoFactor: twoFactorEnabled,
@@ -554,6 +557,7 @@ export class EnhancedAuthService {
       email: user.email,
       username: user.username,
       role: user.role,
+      tier: resolveRateLimitTierFromRole(user.role),
       twoFactorVerified,
     };
     const accessToken = this.jwtService.sign(payload);

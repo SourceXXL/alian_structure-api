@@ -1,287 +1,244 @@
 import {
   CanActivate,
   ExecutionContext,
-  Injectable,
   HttpException,
   HttpStatus,
-  Optional,
+  Injectable,
+  Logger,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import {
   RATE_LIMIT_KEY,
   RateLimitOptions,
 } from "../decorators/rate-limit.decorator";
-import { QUOTA_LEVELS, DEFAULT_QUOTA } from "src/config/quota.config";
+import {
+  RateLimitTier,
+  getRateLimitPolicyFromEnv,
+  normalizeRateLimitTier,
+  resolveRateLimitTierFromRole,
+} from "src/config/quota.config";
+
+interface RateWindowState {
+  count: number;
+  resetAt: number;
+}
+
+interface ResolvedPolicy {
+  tier: RateLimitTier;
+  label: string;
+  limit: number;
+  windowMs: number;
+  burst: number;
+}
 
 @Injectable()
 export class QuotaGuard implements CanActivate {
-  private metrics?: any;
-  private dynamicScaling?: any;
-  private analytics?: any;
-  private premiumBonus?: any;
-  private rateLimiterService?: any;
+  private readonly logger = new Logger(QuotaGuard.name);
+  private readonly windows = new Map<string, RateWindowState>();
+  private lastCleanupAt = Date.now();
 
   constructor(
     private readonly reflector: Reflector,
-    @Optional() metrics?: any,
-    @Optional() dynamicScaling?: any,
-    @Optional() analytics?: any,
-    @Optional() premiumBonus?: any,
-    @Optional() rateLimiterService?: any,
-  ) {
-    this.metrics = metrics;
-    this.dynamicScaling = dynamicScaling;
-    this.analytics = analytics;
-    this.premiumBonus = premiumBonus;
-    this.rateLimiterService = rateLimiterService;
-  }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const options = this.reflector.getAllAndOverride<RateLimitOptions>(
       RATE_LIMIT_KEY,
       [context.getHandler(), context.getClass()],
-    ) as RateLimitOptions | undefined;
-
-    if (!options) {
-      return true;
-    }
+    );
 
     const request = context.switchToHttp().getRequest();
-    const trackerKey = this.getTrackerKey(request);
-
-    // Merge options with level config
-    const levelConfig =
-      QUOTA_LEVELS[(options.level as string) || "free"] || DEFAULT_QUOTA;
-    const baseLimit = options.limit ?? levelConfig.limit;
-    const baseWindowMs = options.windowMs ?? levelConfig.windowMs;
-    const baseBurst = options.burst ?? levelConfig.burst;
-
-    const endpoint =
-      request.route?.path || request.originalUrl || request.url || "unknown";
-    const userId = String(request.user?.id || trackerKey);
-    const userTier = request.user?.tier || options.level || "unknown";
-    const policy = (options.level as string) || "custom";
-
-    const dynamic = this.dynamicScaling?.getAdjustment({
-      key: trackerKey,
-      userId,
-      endpoint,
-      policy,
-      baseLimit,
-      baseWindowMs,
-      baseBurst,
-    });
-
-    const dynamicLimit = dynamic?.limit ?? baseLimit;
-    const dynamicWindowMs = dynamic?.windowMs ?? baseWindowMs;
-    const dynamicBurst = dynamic?.burst ?? baseBurst;
-
-    if (dynamic) {
-      const direction =
-        dynamic.multiplier > 1.01
-          ? "up"
-          : dynamic.multiplier < 0.99
-            ? "down"
-            : "stable";
-      this.metrics?.rateLimitScalingDecisions.inc({
-        policy,
-        endpoint,
-        direction,
-        predicted_burst: String(dynamic.predictedBurst),
-      });
-      this.metrics?.rateLimitScalingMultiplier.set(
-        {
-          policy,
-          endpoint,
-        },
-        dynamic.multiplier,
-      );
-      this.metrics?.rateLimitPredictionConfidence.set(
-        {
-          policy,
-          endpoint,
-        },
-        dynamic.confidence,
-      );
-      this.metrics?.rateLimitPredictionLatency.observe(
-        {
-          policy,
-          endpoint,
-        },
-        dynamic.predictionLatencyMs,
-      );
-    }
-
-    const control = this.analytics?.getEffectiveControl(
-      request.user?.id,
-      dynamicLimit,
-      dynamicWindowMs,
-      dynamicBurst,
-    );
-
-    const controlledLimit = control?.limit ?? dynamicLimit;
-    const controlledWindowMs = control?.windowMs ?? dynamicWindowMs;
-    const controlledBurst = control?.burst ?? dynamicBurst;
-
-    const premiumAdjustment = this.premiumBonus
-      ? await this.premiumBonus.getAdjustment({
-          userId,
-          userTier: String(userTier),
-          endpoint,
-          policy,
-          baseLimit: controlledLimit,
-          baseWindowMs: controlledWindowMs,
-          baseBurst: controlledBurst,
-        })
-      : undefined;
-
-    const limit = premiumAdjustment?.limit ?? controlledLimit;
-    const windowMs = premiumAdjustment?.windowMs ?? controlledWindowMs;
-    const burst = premiumAdjustment?.burst ?? controlledBurst;
-
-    const startedAt = Date.now();
-
-    const result = await this.rateLimiterService.checkQuota(
-      trackerKey,
-      limit,
-      windowMs,
-      burst,
-    );
-
-    const decisionMs = Date.now() - startedAt;
-
-    this.metrics?.rateLimitHits.inc({ policy, user_tier: userTier, endpoint });
-    this.metrics?.rateLimitCurrentUsage.set(
-      {
-        policy,
-        user_id: String(userId),
-        endpoint,
-      },
-      Math.max(0, limit - result.remaining),
-    );
-    this.metrics?.rateLimitResetTime.set(
-      {
-        policy,
-        user_id: String(userId),
-        endpoint,
-      },
-      Date.now() + result.resetMs,
-    );
-
-    if (!result.allowed) {
-      this.metrics?.rateLimitExceeded.inc({
-        policy,
-        user_tier: userTier,
-        endpoint,
-      });
-      this.metrics?.throttlingEvents.inc({
-        severity: result.remaining <= 0 ? "high" : "medium",
-        policy,
-        user_tier: userTier,
-      });
-    }
-
-    if (premiumAdjustment && premiumAdjustment.bonusApplied) {
-      this.metrics?.premiumTierUsage.inc({
-        feature: premiumAdjustment.feature,
-        user_tier: String(userTier),
-        plan: policy,
-      });
-
-      this.metrics?.premiumBonusClaims.inc({
-        bonus_type:
-          premiumAdjustment.activeBoostIds.length > 0 ? "boost" : "tier",
-        user_tier: String(userTier),
-        source:
-          premiumAdjustment.activeBoostIds.length > 0
-            ? "manual_or_campaign"
-            : "tier_policy",
-      });
-
-      if (premiumAdjustment.componentMultipliers.referral > 0) {
-        this.metrics?.referralBonusUsage.inc({
-          bonus_type: "rate_limit",
-          referrer_tier: String(userTier),
-          referee_tier: String(userTier),
-        });
-      }
-    }
-
-    this.dynamicScaling?.recordFeedback({
-      context: {
-        key: trackerKey,
-        userId,
-        endpoint,
-        policy,
-        baseLimit,
-        baseWindowMs,
-        baseBurst,
-      },
-      allowed: result.allowed,
-      remaining: result.remaining,
-    });
-
-    if (premiumAdjustment) {
-      this.premiumBonus?.recordUsage({
-        userId,
-        userTier: String(userTier),
-        endpoint,
-        feature: premiumAdjustment.feature,
-        policy,
-        baseLimit: controlledLimit,
-        effectiveLimit: limit,
-        allowed: result.allowed,
-        remaining: result.remaining,
-        adjustment: premiumAdjustment,
-      });
-    }
-
-    this.analytics?.recordRateLimitDecision({
-      key: trackerKey,
-      userId: String(userId),
-      endpoint,
-      policy,
-      userTier: String(userTier),
-      allowed: result.allowed,
-      remaining: result.remaining,
-      limit,
-      resetMs: result.resetMs,
-      decisionMs,
-    });
-
     const response = context.switchToHttp().getResponse();
+    const tier = this.resolveRequestTier(request);
+    const policy = this.resolvePolicy(options, tier);
+    const tracker = this.getTrackerKey(request);
+    const scope = this.getScope(request, options);
+    const key = `${tracker}:${scope}:${policy.tier}`;
 
-    // Set headers
-    response.header("X-RateLimit-Limit", limit);
-    response.header("X-RateLimit-Remaining", result.remaining);
-    response.header(
-      "X-RateLimit-Reset",
-      new Date(Date.now() + result.resetMs).toISOString(),
+    const decision = this.consume(key, policy.limit, policy.windowMs);
+    this.applyHeaders(
+      response,
+      policy,
+      decision.remaining,
+      decision.resetAt,
     );
 
-    if (!result.allowed) {
+    if (!decision.allowed) {
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           message: "Rate limit exceeded",
-          retryAfterMs: result.resetMs,
+          limit: policy.limit,
+          remaining: 0,
+          resetAt: new Date(decision.resetAt).toISOString(),
+          tier: policy.tier,
         },
         HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    if (decision.remaining <= Math.max(1, Math.ceil(policy.limit * 0.1))) {
+      this.logger.warn(
+        `Approaching rate limit for ${tracker} (${policy.label}): ` +
+          `${policy.limit - decision.remaining}/${policy.limit}`,
       );
     }
 
     return true;
   }
 
-  private getTrackerKey(req: any): string {
-    const userId = req.user?.id;
-    if (userId) {
-      return `user:${userId}`;
+  private resolvePolicy(
+    options: RateLimitOptions | undefined,
+    tier: RateLimitTier,
+  ): ResolvedPolicy {
+    const envPolicy = getRateLimitPolicyFromEnv(
+      tier,
+      process.env as Record<string, unknown>,
+    );
+
+    if (!options) {
+      return {
+        tier,
+        label: tier,
+        ...envPolicy,
+      };
     }
 
-    const xff = req.headers?.["x-forwarded-for"];
-    const ip = typeof xff === "string" ? xff.split(",")[0].trim() : req.ip;
+    const configuredTier = options.level
+      ? normalizeRateLimitTier(options.level)
+      : tier;
+    const levelPolicy = getRateLimitPolicyFromEnv(
+      configuredTier,
+      process.env as Record<string, unknown>,
+    );
 
-    return `ip:${ip || "unknown"}`;
+    return {
+      tier: configuredTier,
+      label: options.level || configuredTier,
+      limit: options.limit ?? levelPolicy.limit,
+      windowMs: options.windowMs ?? levelPolicy.windowMs,
+      burst: options.burst ?? levelPolicy.burst,
+    };
+  }
+
+  private resolveRequestTier(request: {
+    authType?: string;
+    user?: { id?: string | number; role?: string; tier?: string; type?: string };
+  }): RateLimitTier {
+    const explicitTier = request.user?.tier;
+    const authType = request.authType ?? request.user?.type;
+
+    if (authType === "api-key") {
+      return normalizeRateLimitTier(explicitTier ?? "enterprise");
+    }
+
+    return resolveRateLimitTierFromRole(
+      request.user?.role,
+      authType,
+      explicitTier,
+    );
+  }
+
+  private getTrackerKey(request: {
+    ip?: string;
+    headers?: Record<string, unknown>;
+    user?: { id?: string | number; sub?: string | number; address?: string };
+  }): string {
+    const userId = request.user?.id ?? request.user?.sub;
+    if (userId !== undefined && userId !== null) {
+      return `user:${String(userId)}`;
+    }
+
+    if (request.user?.address) {
+      return `wallet:${request.user.address.toLowerCase()}`;
+    }
+
+    const xff = request.headers?.["x-forwarded-for"];
+    if (typeof xff === "string" && xff.length > 0) {
+      return `ip:${xff.split(",")[0].trim()}`;
+    }
+
+    return `ip:${request.ip ?? "unknown"}`;
+  }
+
+  private getScope(
+    request: { route?: { path?: string }; originalUrl?: string; url?: string },
+    options: RateLimitOptions | undefined,
+  ): string {
+    if (!options) {
+      return "global";
+    }
+
+    return request.route?.path || request.originalUrl || request.url || "route";
+  }
+
+  private consume(
+    key: string,
+    limit: number,
+    windowMs: number,
+  ): { allowed: boolean; remaining: number; resetAt: number } {
+    const now = Date.now();
+    let state = this.windows.get(key);
+
+    if (!state || state.resetAt <= now) {
+      state = {
+        count: 0,
+        resetAt: now + windowMs,
+      };
+      this.windows.set(key, state);
+    }
+
+    state.count += 1;
+    const remaining = Math.max(0, limit - state.count);
+    const allowed = state.count <= limit;
+
+    this.windows.set(key, state);
+    this.cleanupExpired(now);
+
+    return {
+      allowed,
+      remaining,
+      resetAt: state.resetAt,
+    };
+  }
+
+  private applyHeaders(
+    response: any,
+    policy: ResolvedPolicy,
+    remaining: number,
+    resetAt: number,
+  ): void {
+    const headers: Array<[string, string | number]> = [
+      ["X-RateLimit-Limit", policy.limit],
+      ["X-RateLimit-Remaining", remaining],
+      ["X-RateLimit-Reset", new Date(resetAt).toISOString()],
+      ["X-RateLimit-Tier", policy.tier],
+    ];
+
+    for (const [name, value] of headers) {
+      if (typeof response?.header === "function") {
+        response.header(name, value);
+      } else if (typeof response?.setHeader === "function") {
+        response.setHeader(name, value);
+      }
+    }
+  }
+
+  private cleanupExpired(now: number): void {
+    if (this.windows.size === 0) {
+      return;
+    }
+
+    if (now - this.lastCleanupAt < 30_000 && this.windows.size < 1000) {
+      return;
+    }
+
+    for (const [key, state] of this.windows.entries()) {
+      if (state.resetAt <= now) {
+        this.windows.delete(key);
+      }
+    }
+
+    this.lastCleanupAt = now;
   }
 }

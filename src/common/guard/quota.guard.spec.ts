@@ -1,129 +1,98 @@
-// ⚠️ TEST FILE HAS DEPENDENCIES ON MISSING CODE
-// This test references RateLimiterService from "src/quota/rate-limiter.service"
-// which does not exist in the current codebase. The quota/ directory was likely
-// removed or merged elsewhere during codebase consolidation.
-//
-// To fix this test:
-// 1. Locate the current rate limiter service implementation
-// 2. Update the import path to point to the correct location
-// 3. Ensure all mocks are updated accordingly
-
-import { Test, TestingModule } from "@nestjs/testing";
+import {
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { QuotaGuard } from "./quota.guard";
-// import { RateLimiterService } from "src/quota/rate-limiter.service"; // Missing dependency
-import { HttpException } from "@nestjs/common";
+
+function createContext(options?: {
+  user?: { id?: string; sub?: string; address?: string; role?: string; tier?: string; type?: string };
+  ip?: string;
+  originalUrl?: string;
+}): { context: ExecutionContext; response: { header: jest.Mock; setHeader: jest.Mock } } {
+  const request = {
+    ip: options?.ip ?? "127.0.0.1",
+    headers: {},
+    originalUrl: options?.originalUrl ?? "/api/test",
+    route: { path: "/api/test" },
+    authType: options?.user?.type,
+    user: options?.user,
+  };
+
+  const response = {
+    header: jest.fn(),
+    setHeader: jest.fn(),
+  };
+
+  const context = {
+    getHandler: jest.fn(),
+    getClass: jest.fn(),
+    switchToHttp: () => ({
+      getRequest: () => request,
+      getResponse: () => response,
+    }),
+  } as unknown as ExecutionContext;
+
+  return { context, response };
+}
 
 describe("QuotaGuard", () => {
-  // TODO: Uncomment when RateLimiterService is located and import is fixed
-  // let guard: QuotaGuard;
-  // let reflector: Reflector;
-  // let rateLimiterService: RateLimiterService;
-  //
-  // beforeEach(async () => {
-  //   const module: TestingModule = await Test.createTestingModule({
-  //     providers: [
-  //       QuotaGuard,
-  //       {
-  //         provide: Reflector,
-  //         useValue: {
-  //           getAllAndOverride: jest.fn(),
-  //         },
-  //       },
-  //       {
-  //         provide: RateLimiterService,
-  //         useValue: {
-  //           checkQuota: jest.fn().mockResolvedValue(true),
-  //         },
-  //       },
-  //     ],
-  //   }).compile();
-  //
-  //   guard = module.get<QuotaGuard>(QuotaGuard);
-  //   reflector = module.get<Reflector>(Reflector);
-  //   rateLimiterService = module.get<RateLimiterService>(RateLimiterService);
-  // });
+  let guard: QuotaGuard;
+  let reflector: Reflector;
 
-  it("placeholder test until dependencies are restored", () => {
-    // This test exists to prevent the test suite from failing due to missing dependencies
-    expect(true).toBe(true);
+  beforeEach(() => {
+    reflector = new Reflector();
+    guard = new QuotaGuard(reflector);
   });
 
-  // TODO: Uncomment all tests below when RateLimiterService is located and import is fixed
-  // it("should be defined", () => {
-  //   expect(guard).toBeDefined();
-  // });
-  //
-  // it("should allow request if no @RateLimit decorator is present", async () => {
-  //   (reflector.getAllAndOverride as jest.Mock).mockReturnValue(null);
-  //   const context = {
-  //     getHandler: jest.fn(),
-  //     getClass: jest.fn(),
-  //     switchToHttp: jest.fn().mockReturnValue({
-  //       getRequest: jest.fn(),
-  //     }),
-  //   } as any;
-  //
-  //   const result = await guard.canActivate(context);
-  //   expect(result).toBe(true);
-  // });
-  //
-  // it("should throw HttpException if rate limit is exceeded", async () => {
-  //   (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
-  //     level: "free",
-  //   });
-  //   (rateLimiterService.checkQuota as jest.Mock).mockResolvedValue({
-  //     allowed: false,
-  //     remaining: 0,
-  //     resetMs: 60000,
-  //   });
-  //
-  //   const mockResponse = {
-  //     header: jest.fn(),
-  //   };
-  //   const context = {
-  //     getHandler: jest.fn(),
-  //     getClass: jest.fn(),
-  //     switchToHttp: jest.fn().mockReturnValue({
-  //       getRequest: jest.fn().mockReturnValue({ ip: "127.0.0.1", headers: {} }),
-  //       getResponse: jest.fn().mockReturnValue(mockResponse),
-  //     }),
-  //   } as any;
-  //
-  //   await expect(guard.canActivate(context)).rejects.toThrow(HttpException);
-  //   expect(mockResponse.header).toHaveBeenCalledWith(
-  //     "X-RateLimit-Limit",
-  //     expect.any(Number),
-  //   );
-  // });
-  //
-  // it("should allow request and set headers if within limit", async () => {
-  //   (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
-  //     level: "free",
-  //   });
-  //   (rateLimiterService.checkQuota as jest.Mock).mockResolvedValue({
-  //     allowed: true,
-  //     remaining: 5,
-  //     resetMs: 60000,
-  //   });
-  //
-  //   const mockResponse = {
-  //     header: jest.fn(),
-  //   };
-  //   const context = {
-  //     getHandler: jest.fn(),
-  //     getClass: jest.fn(),
-  //     switchToHttp: jest.fn().mockReturnValue({
-  //       getRequest: jest.fn().mockReturnValue({ ip: "127.0.0.1", headers: {} }),
-  //       getResponse: jest.fn().mockReturnValue(mockResponse),
-  //     }),
-  //   } as any;
-  //
-  //   const result = await guard.canActivate(context);
-  //   expect(result).toBe(true);
-  //   expect(mockResponse.header).toHaveBeenCalledWith(
-  //     "X-RateLimit-Remaining",
-  //     5,
-  //   );
-  // });
+  it("allows requests and emits rate-limit headers for the default tier", async () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const { context, response } = createContext();
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(response.header).toHaveBeenCalledWith("X-RateLimit-Limit", 100);
+    expect(response.header).toHaveBeenCalledWith(
+      "X-RateLimit-Remaining",
+      99,
+    );
+    expect(response.header).toHaveBeenCalledWith("X-RateLimit-Tier", "free");
+  });
+
+  it("uses the authenticated user tier when one is available", async () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const { context, response } = createContext({
+      user: { id: "user-1", role: "admin" },
+    });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(response.header).toHaveBeenCalledWith(
+      "X-RateLimit-Tier",
+      "enterprise",
+    );
+  });
+
+  it("rejects requests after the configured limit is reached", async () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue({
+      level: "auth",
+      limit: 1,
+      windowMs: 60_000,
+    });
+
+    const { context } = createContext({
+      user: { id: "user-2", role: "user" },
+    });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+
+    try {
+      await guard.canActivate(context);
+      throw new Error("Expected rate limit rejection");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  });
 });

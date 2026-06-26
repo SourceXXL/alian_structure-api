@@ -20,7 +20,6 @@ import {
   ApiQuery,
   ApiOkResponse,
 } from "@nestjs/swagger";
-import { Throttle } from "@nestjs/throttler";
 import { JwtAuthGuard } from "src/core/auth/jwt.guard";
 import { PortfolioService } from "./services/portfolio.service";
 import { RebalancingService } from "./services/rebalancing.service";
@@ -49,12 +48,13 @@ import {
   TimeRangeDto,
 } from "./dto/performance.dto";
 import { CreateBacktestDto } from "./dto/backtest.dto";
+import { RateLimit } from "src/common/decorators/rate-limit.decorator";
 
 @Controller("portfolio")
 @ApiTags("Portfolio Optimization")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Throttle({ trading: { ttl: 60_000, limit: 20 } })
+@RateLimit({ level: "trading", limit: 20, windowMs: 60_000 })
 export class PortfolioController {
   constructor(
     private portfolioService: PortfolioService,

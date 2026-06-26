@@ -109,6 +109,11 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   OPT_RPC_URL?: string;
 
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  BSC_RPC_URL?: string;
+
   // Oracle configuration
   @IsOptional()
   @IsString()

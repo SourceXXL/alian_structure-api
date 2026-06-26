@@ -1,3 +1,6 @@
+import { SocialAccount } from "./entities/social-account.entity";
+import { OAuthController } from "./oauth.controller";
+import { AuditLogService } from "src/infrastructure/audit/audit-log.service";
 import { Module, OnModuleInit } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
@@ -74,10 +77,11 @@ import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
       Wallet,
       RefreshToken,
       TwoFactorAuth,
+      SocialAccount,
     ]),
     AuditModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, OAuthController],
   providers: [
     // Legacy services (for backward compatibility)
     AuthService,
@@ -102,6 +106,7 @@ import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
     ApiKeyStrategy,
     StrategyAuthGuard,
     AdminTwoFactorGuard,
+    AuditLogService,
   ],
   exports: [
     // Legacy exports

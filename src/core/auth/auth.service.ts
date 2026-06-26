@@ -12,6 +12,7 @@ import { JwtService } from "@nestjs/jwt";
 import { User } from "../user/entities/user.entity";
 import { RegisterDto, LoginDto } from "./dto/auth.dto";
 import { TokenBlacklistService } from "./token-blacklist.service";
+import { resolveRateLimitTierFromRole } from "src/config/quota.config";
 
 @Injectable()
 export class AuthService {
@@ -28,7 +29,7 @@ export class AuthService {
    */
   async register(
     registerDto: RegisterDto,
-  ): Promise<{ token: string; user: Partial<User> }> {
+  ): Promise<{ token: string; user: Partial<User> & { tier?: string } }> {
     const { email, password, username, referralCode } = registerDto;
 
     // Check if user already exists
@@ -93,6 +94,7 @@ export class AuthService {
       email: user.email,
       username: user.username,
       jti,
+      tier: resolveRateLimitTierFromRole(user.role),
     };
     const token = this.jwtService.sign(payload, { expiresIn: "15m" });
 
@@ -103,6 +105,7 @@ export class AuthService {
         email: user.email,
         username: user.username,
         role: user.role,
+        tier: resolveRateLimitTierFromRole(user.role),
         referralCode: user.referralCode,
       },
     };
@@ -114,7 +117,7 @@ export class AuthService {
    */
   async login(
     loginDto: LoginDto,
-  ): Promise<{ token: string; user: Partial<User> }> {
+  ): Promise<{ token: string; user: Partial<User> & { tier?: string } }> {
     const { email, password } = loginDto;
 
     // Find user by email
@@ -143,6 +146,7 @@ export class AuthService {
       email: user.email,
       username: user.username,
       jti,
+      tier: resolveRateLimitTierFromRole(user.role),
     };
     const token = this.jwtService.sign(payload, { expiresIn: "15m" });
 
@@ -153,6 +157,7 @@ export class AuthService {
         email: user.email,
         username: user.username,
         role: user.role,
+        tier: resolveRateLimitTierFromRole(user.role),
         referralCode: user.referralCode,
       },
     };
@@ -172,7 +177,10 @@ export class AuthService {
 
   async getAuthStatus(
     user: User,
-  ): Promise<{ isAuthenticated: boolean; user: Partial<User> }> {
+  ): Promise<{
+    isAuthenticated: boolean;
+    user: Partial<User> & { tier?: string };
+  }> {
     return {
       isAuthenticated: true,
       user: {
@@ -180,6 +188,7 @@ export class AuthService {
         email: user.email,
         username: user.username,
         role: user.role,
+        tier: resolveRateLimitTierFromRole(user.role),
         referralCode: user.referralCode,
       },
     };

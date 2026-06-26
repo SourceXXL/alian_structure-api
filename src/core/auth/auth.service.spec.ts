@@ -43,6 +43,7 @@ describe("AuthService", () => {
     referredById: null,
     referredBy: null,
     referrals: [],
+        socialAccounts: [],
   };
 
   const mockJwtService = {

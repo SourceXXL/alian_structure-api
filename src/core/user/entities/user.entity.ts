@@ -1,3 +1,4 @@
+import { SocialAccount } from "src/core/auth/entities/social-account.entity";
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -98,4 +99,7 @@ export class User {
 
   @OneToMany(() => User, (user) => user.referredBy)
   referrals: User[];
+
+  @OneToMany(() => SocialAccount, (social) => social.user)
+  socialAccounts: SocialAccount[];
 }

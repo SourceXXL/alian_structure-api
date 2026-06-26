@@ -33,8 +33,10 @@ import { RequestRecoveryDto } from "./dto/request-recovery.dto";
 import { LinkWalletDto } from "./dto/link-wallet.dto";
 import { UnlinkWalletDto } from "./dto/unlink-wallet.dto";
 import { RecoverWalletDto } from "./dto/recover-wallet.dto";
-import { Throttle } from "@nestjs/throttler";
-import { SensitiveRateLimit } from "src/common/decorators/rate-limit.decorator";
+import {
+  RateLimit,
+  SensitiveRateLimit,
+} from "src/common/decorators/rate-limit.decorator";
 import { Roles, Role } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guard/roles.guard";
 import { Public } from "src/common/decorators/public.decorator";
@@ -68,7 +70,6 @@ export class VerifySignatureDto {
 // Auth endpoints are high-value targets — enforce strict per-user/IP limit: 5 req/min
 @SensitiveRateLimit("auth")
 @ApiTags("Authentication")
-@Throttle({ default: { ttl: 60000, limit: 10 } })
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -222,7 +223,7 @@ export class AuthController {
 
   // Wallet Management Endpoints
 
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @RateLimit({ level: "auth", limit: 5, windowMs: 60000 })
   @UseGuards(JwtAuthGuard)
   @Post("link-wallet")
   async linkWallet(@Request() req, @Body() dto: LinkWalletDto) {
@@ -238,7 +239,7 @@ export class AuthController {
     );
   }
 
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @RateLimit({ level: "auth", limit: 5, windowMs: 60000 })
   @UseGuards(JwtAuthGuard)
   @Post("unlink-wallet")
   async unlinkWallet(@Request() req, @Body() dto: UnlinkWalletDto) {
@@ -267,7 +268,7 @@ export class AuthController {
     return this.walletAuthService.setPrimaryWallet(walletId, userId);
   }
 
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @RateLimit({ level: "auth", limit: 3, windowMs: 60000 })
   @Post("recover-wallet")
   async recoverWallet(@Body() dto: RecoverWalletDto) {
     return this.walletAuthService.recoverWallet(dto.email, dto.recoveryToken);
@@ -275,7 +276,7 @@ export class AuthController {
 
   // Advanced Session Recovery Endpoints
 
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @RateLimit({ level: "auth", limit: 3, windowMs: 60000 })
   @Post("recovery/backup-code/initiate")
   async initiateBackupCodeRecovery(
     @Body() dto: { walletAddress: string; backupCode: string },
@@ -288,7 +289,7 @@ export class AuthController {
     );
   }
 
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @RateLimit({ level: "auth", limit: 3, windowMs: 60000 })
   @Post("recovery/email/initiate")
   async initiateEmailRecovery(@Body() dto: { email: string }, @Request() req) {
     return this.sessionRecoveryService.initiateEmailRecovery(dto.email, {
@@ -297,7 +298,7 @@ export class AuthController {
     });
   }
 
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @RateLimit({ level: "auth", limit: 5, windowMs: 60000 })
   @Post("recovery/email/verify")
   async verifyEmailRecoveryCode(
     @Body() dto: { sessionId: string; code: string },
@@ -341,7 +342,7 @@ export class AuthController {
   // Delegation Endpoints
 
   @UseGuards(JwtAuthGuard)
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @RateLimit({ level: "auth", limit: 5, windowMs: 60000 })
   @Post("delegation/request")
   async requestDelegation(
     @Body()
