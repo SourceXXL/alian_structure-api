@@ -1,12 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
-import { io, Socket } from "socket.io-client";
+import io from "socket.io-client";
 import { v4 as uuidv4 } from "uuid";
 
 export interface UpstreamConnection {
   id: string;
   serviceName: string;
   url: string;
-  socket: Socket;
+  socket: any;
   connectedAt: Date;
   lastHeartbeat: Date;
   isConnected: boolean;

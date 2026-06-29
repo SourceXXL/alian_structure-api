@@ -64,8 +64,6 @@ function buildSdk(): NodeSDK {
     textMapPropagator: new W3CTraceContextPropagator(),
     instrumentations: [
       getNodeAutoInstrumentations({
-        // fs instrumentation is noisy; disable it
-        "@opentelemetry/instrumentation-fs": { enabled: false },
         // Ensure HTTP instrumentation captures request/response headers
         "@opentelemetry/instrumentation-http": {
           headersToSpanAttributes: {

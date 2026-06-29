@@ -16,7 +16,7 @@ export class WsExceptionFilter implements ExceptionFilter {
     let errorResponse: WsErrorResponse;
 
     if (exception instanceof WsException) {
-      const error = exception.getError();
+      const error = (exception as WsException).getError();
 
       if (typeof error === "string") {
         errorResponse = {

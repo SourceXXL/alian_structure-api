@@ -1,4 +1,9 @@
-import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Portfolio } from "../entities/portfolio.entity";
@@ -42,43 +47,89 @@ export class PortfolioService {
     private auditLogService: AuditLogService,
   ) {}
 
-  /**
-   * Create a new portfolio for a user
-   */
-  async createPortfolio(
-    userId: string,
-    dto: CreatePortfolioDto,
+  private validatePortfolioName(name: string): void {
+    if (!name || name.trim().length === 0) {
+      throw new BadRequestException("Portfolio name cannot be empty");
+    }
+  }
+
+  private validateAllocation(allocation?: Record<string, number>): void {
+    if (!allocation) return;
+    const sum = Object.values(allocation).reduce((acc, val) => acc + (val || 0), 0);
+    if (Math.abs(sum - 100) > 0.1) {
+      throw new BadRequestException(
+        `Allocation percentages must sum to 100, got ${sum}`,
+      );
+    }
+  }
+
+  async deletePortfolio(portfolioId: string): Promise<void> {
+    const portfolio = await this.getPortfolio(portfolioId);
+    await this.portfolioRepository.remove(portfolio);
+  }
+
+  async archivePortfolio(
+    portfolioId: string,
+    status: PortfolioStatus,
   ): Promise<Portfolio> {
+    const portfolio = await this.getPortfolio(portfolioId);
+    if (status === PortfolioStatus.ARCHIVED) {
+      portfolio.status = PortfolioStatus.ARCHIVED;
+      portfolio.deletedAt = new Date();
+    }
+    return this.portfolioRepository.save(portfolio);
+  }
+
+  async setTargetAllocation(
+    portfolioId: string,
+    allocations: { [ticker: string]: number },
+  ): Promise<Portfolio> {
+    const portfolio = await this.getPortfolio(portfolioId);
+    portfolio.targetAllocation = allocations;
+    return this.portfolioRepository.save(portfolio);
+  }
+
+  async createPortfolio(userId: string, dto: CreatePortfolioDto): Promise<Portfolio> {
+    this.validatePortfolioName(dto.name);
+    this.validateAllocation(dto.initialAllocation);
+
+    const existingPortfolio = await this.portfolioRepository.findOne({
+      where: { name: dto.name, userId },
+    });
+
+    if (existingPortfolio && !existingPortfolio.deletedAt) {
+      throw new BadRequestException(
+        "Portfolio with this name already exists",
+      );
+    }
+
     const portfolio = this.portfolioRepository.create({
       ...dto,
       userId,
       status: PortfolioStatus.ACTIVE,
       currentAllocation: {},
       targetAllocation: {},
+      totalValue: dto.totalValue || 0,
+      autoRebalanceEnabled: dto.autoRebalanceEnabled || false,
+      rebalanceThreshold: dto.rebalanceThreshold || 5,
     });
 
     return this.portfolioRepository.save(portfolio);
   }
 
-  /**
-   * Get portfolio by ID
-   */
   async getPortfolio(portfolioId: string): Promise<Portfolio> {
     const portfolio = await this.portfolioRepository.findOne({
       where: { id: portfolioId },
       relations: ["assets", "optimizationHistory", "performanceMetrics"],
     });
 
-    if (!portfolio) {
-      throw new BadRequestException("Portfolio not found");
+    if (!portfolio || portfolio.deletedAt) {
+      throw new NotFoundException("Portfolio not found");
     }
 
     return portfolio;
   }
 
-  /**
-   * Get all portfolios for user
-   */
   async getUserPortfolios(userId: string): Promise<Portfolio[]> {
     return this.portfolioRepository.find({
       where: { userId },
@@ -87,14 +138,40 @@ export class PortfolioService {
     });
   }
 
-  /**
-   * Update portfolio
-   */
   async updatePortfolio(
     portfolioId: string,
     dto: UpdatePortfolioDto,
   ): Promise<Portfolio> {
     const portfolio = await this.getPortfolio(portfolioId);
+
+    if (dto.name && dto.name !== portfolio.name) {
+      this.validatePortfolioName(dto.name);
+    }
+
+    if (dto.initialAllocation) {
+      this.validateAllocation(dto.initialAllocation);
+      portfolio.initialAllocation = dto.initialAllocation;
+    }
+
+    if (dto.currentAllocation) {
+      this.validateAllocation(dto.currentAllocation);
+      portfolio.currentAllocation = dto.currentAllocation;
+    }
+
+    if (dto.targetAllocation) {
+      this.validateAllocation(dto.targetAllocation);
+      portfolio.targetAllocation = dto.targetAllocation;
+    }
+
+    if (dto.status === PortfolioStatus.ARCHIVED) {
+      portfolio.status = PortfolioStatus.ARCHIVED;
+      portfolio.deletedAt = new Date();
+    } else if (dto.status) {
+      portfolio.status = dto.status;
+      if (dto.status === PortfolioStatus.ACTIVE) {
+        portfolio.deletedAt = null;
+      }
+    }
 
     Object.assign(portfolio, dto);
 
@@ -110,46 +187,39 @@ export class PortfolioService {
   ): Promise<PortfolioAsset> {
     const portfolio = await this.getPortfolio(portfolioId);
 
-    // Check if holding already exists
-    const existing = await this.portfolioAssetRepository.findOne({
-      where: { portfolioId, ticker: dto.ticker, chain: dto.chain },
+    if (dto.quantity <= 0) {
+      throw new BadRequestException("Quantity must be positive");
+    }
+
+    if (dto.currentPrice !== undefined && dto.currentPrice < 0) {
+      throw new BadRequestException("Current price cannot be negative");
+    }
+
+    const existingAsset = await this.portfolioAssetRepository.findOne({
+      where: { portfolioId, ticker: dto.ticker },
     });
 
-    if (existing) {
+    if (existingAsset) {
       throw new BadRequestException(
         "Holding with same ticker and chain already exists",
       );
     }
 
-    const holding = this.portfolioAssetRepository.create({
+    const asset = this.portfolioAssetRepository.create({
+      ...dto,
       portfolioId,
-      ticker: dto.ticker,
-      name: dto.name,
-      chain: dto.chain,
-      type: dto.type || AssetType.CRYPTOCURRENCY,
-      quantity: dto.quantity,
-      currentPrice: dto.currentPrice || 0,
       value: dto.quantity * (dto.currentPrice || 0),
-      costBasis: dto.costBasis,
-      costBasisPerShare: dto.quantity > 0 ? dto.costBasis / dto.quantity : 0,
     });
-
-    // Calculate unrealized gain
-    if (holding.currentPrice && holding.costBasisPerShare) {
-      holding.unrealizedGain =
-        (holding.currentPrice - holding.costBasisPerShare) * holding.quantity;
-    }
 
     await this.validatePortfolioConstraints(
       portfolio,
-      [...(portfolio.assets || []), holding as PortfolioAsset],
+      [...(portfolio.assets || []), asset],
       dto,
       "ADD_HOLDING",
     );
 
-    const saved = await this.portfolioAssetRepository.save(holding);
+    const saved = await this.portfolioAssetRepository.save(asset);
 
-    // Update portfolio metrics
     await this.updatePortfolioMetrics(portfolioId);
 
     return saved;
@@ -253,9 +323,6 @@ export class PortfolioService {
     });
   }
 
-  /**
-   * Update asset price and calculate allocation
-   */
   async updateAssetPrice(
     assetId: string,
     currentPrice: number,
@@ -265,7 +332,11 @@ export class PortfolioService {
     });
 
     if (!asset) {
-      throw new BadRequestException("Asset not found");
+      throw new NotFoundException("Asset not found");
+    }
+
+    if (currentPrice < 0) {
+      throw new BadRequestException("Price cannot be negative");
     }
 
     asset.currentPrice = currentPrice;
@@ -371,9 +442,6 @@ export class PortfolioService {
     }
   }
 
-  /**
-   * Run portfolio optimization
-   */
   async runOptimization(
     portfolioId: string,
     dto: CreateOptimizationDto,
@@ -387,7 +455,6 @@ export class PortfolioService {
       throw new BadRequestException("Portfolio has no assets to optimize");
     }
 
-    // Create optimization history record
     const optimization = this.optimizationRepository.create({
       portfolioId,
       method: dto.method,
@@ -400,11 +467,9 @@ export class PortfolioService {
     let result = await this.optimizationRepository.save(optimization);
 
     try {
-      // Prepare data
       const expectedReturns = assets.map((a) => a.expectedReturn || 0.07);
       const volatilities = assets.map((a) => a.volatility || 0.15);
 
-      // Simple correlation matrix (could be enhanced with historical data)
       const correlationMatrix = this.generateCorrelationMatrix(assets.length);
 
       const covarianceMatrix = ModernPortfolioTheory.calculateCovarianceMatrix(
@@ -414,7 +479,6 @@ export class PortfolioService {
 
       let suggestedWeights: number[] = [];
 
-      // Run optimization based on method
       switch (dto.method) {
         case OptimizationMethod.MEAN_VARIANCE:
           suggestedWeights = ModernPortfolioTheory.meanVarianceOptimization(
@@ -446,19 +510,20 @@ export class PortfolioService {
           suggestedWeights = new Array(assets.length).fill(1 / assets.length);
       }
 
-      // Build allocation
       const suggestedAllocation: Record<string, number> = {};
       for (let i = 0; i < assets.length; i++) {
         suggestedAllocation[assets[i].ticker] = suggestedWeights[i] * 100;
         assets[i].suggestedAllocation = suggestedWeights[i] * 100;
       }
 
-      // Calculate metrics
       const metrics = ModernPortfolioTheory.calculatePortfolioMetrics(
         suggestedWeights,
         expectedReturns,
         covarianceMatrix,
       );
+
+      const currentReturn = 0;
+      const currentVolatility = 0;
 
       const currentWeights = assets.map(
         (a) => (a.allocationPercentage || 0) / 100,
@@ -477,7 +542,6 @@ export class PortfolioService {
             100
           : 0;
 
-      // Update optimization result
       result.status = OptimizationStatus.COMPLETED;
       result.suggestedAllocation = suggestedAllocation;
       result.expectedReturn = metrics.expectedReturn;
@@ -488,7 +552,6 @@ export class PortfolioService {
 
       result = await this.optimizationRepository.save(result);
 
-      // Save suggested allocation to assets
       await this.portfolioAssetRepository.save(assets);
 
       this.logger.log(`Optimization completed for portfolio ${portfolioId}`);
@@ -507,9 +570,6 @@ export class PortfolioService {
     }
   }
 
-  /**
-   * Generate simple correlation matrix
-   */
   private generateCorrelationMatrix(size: number): number[][] {
     const matrix: number[][] = [];
 
@@ -519,7 +579,6 @@ export class PortfolioService {
         if (i === j) {
           matrix[i][j] = 1;
         } else {
-          // Simplified correlation
           matrix[i][j] = 0.5 + Math.random() * 0.2;
         }
       }
@@ -528,9 +587,6 @@ export class PortfolioService {
     return matrix;
   }
 
-  /**
-   * Approve optimization
-   */
   async approveOptimization(
     optimizationId: string,
     notes?: string,
@@ -540,7 +596,13 @@ export class PortfolioService {
     });
 
     if (!optimization) {
-      throw new BadRequestException("Optimization not found");
+      throw new NotFoundException("Optimization not found");
+    }
+
+    if (optimization.status !== OptimizationStatus.COMPLETED) {
+      throw new BadRequestException(
+        "Only completed optimizations can be approved",
+      );
     }
 
     optimization.status = OptimizationStatus.APPROVED;
@@ -549,21 +611,23 @@ export class PortfolioService {
     return this.optimizationRepository.save(optimization);
   }
 
-  /**
-   * Implement optimization (apply to portfolio)
-   */
   async implementOptimization(optimizationId: string): Promise<Portfolio> {
     const optimization = await this.optimizationRepository.findOne({
       where: { id: optimizationId },
     });
 
     if (!optimization) {
-      throw new BadRequestException("Optimization not found");
+      throw new NotFoundException("Optimization not found");
+    }
+
+    if (optimization.status !== OptimizationStatus.APPROVED) {
+      throw new BadRequestException(
+        "Only approved optimizations can be implemented",
+      );
     }
 
     const portfolio = await this.getPortfolio(optimization.portfolioId);
 
-    // Apply suggested allocation
     portfolio.targetAllocation = optimization.suggestedAllocation;
     portfolio.lastRebalanceDate = new Date();
 
@@ -575,9 +639,6 @@ export class PortfolioService {
     return this.portfolioRepository.save(portfolio);
   }
 
-  /**
-   * Get optimization history
-   */
   async getOptimizationHistory(
     portfolioId: string,
     limit: number = 10,
@@ -587,51 +648,5 @@ export class PortfolioService {
       order: { createdAt: "DESC" },
       take: limit,
     });
-  }
-
-  async setTargetAllocation(
-    portfolioId: string,
-    allocations: { [ticker: string]: number },
-  ): Promise<Portfolio> {
-    const portfolio = await this.getPortfolio(portfolioId);
-
-    // Validate that the allocations sum to 100%
-    const totalAllocation = Object.values(allocations).reduce(
-      (sum, allocation) => sum + allocation,
-      0,
-    );
-
-    if (Math.abs(totalAllocation - 100) > 0.01) {
-      throw new BadRequestException("Target allocations must sum to 100%");
-    }
-
-    portfolio.targetAllocation = allocations;
-    return this.portfolioRepository.save(portfolio);
-  }
-
-  /**
-   * Archive portfolio (logical delete)
-   */
-  async archivePortfolio(
-    portfolioId: string,
-    status: PortfolioStatus = PortfolioStatus.ARCHIVED,
-  ): Promise<Portfolio> {
-    const portfolio = await this.portfolioRepository.findOne({
-      where: { id: portfolioId },
-    });
-
-    if (!portfolio) {
-      throw new BadRequestException("Portfolio not found");
-    }
-
-    portfolio.status = status;
-    return this.portfolioRepository.save(portfolio);
-  }
-
-  /**
-   * Delete portfolio (physical delete)
-   */
-  async deletePortfolio(portfolioId: string): Promise<void> {
-    await this.portfolioRepository.delete(portfolioId);
   }
 }

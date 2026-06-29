@@ -233,9 +233,9 @@ export class WebSocketClientManager {
 
     try {
       // Dynamic import for socket.io-client
-      const { io } = await import("socket.io-client");
+      const socketIo = await import("socket.io-client");
 
-      this.socket = io(url, {
+      this.socket = socketIo.default(url, {
         transports: ["websocket"],
         auth: { token },
         query: { userId },

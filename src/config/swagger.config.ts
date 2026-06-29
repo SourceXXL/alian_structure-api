@@ -4,7 +4,7 @@ import { ConfigService } from "@nestjs/config";
 
 export function setupSwagger(app: INestApplication): void {
   const configService = app.get(ConfigService);
-  const port = process.env.PORT || configService.get<number>("PORT", 3001);
+  const port = Number(process.env.PORT || configService.get("PORT", 3001));
 
   const config = new DocumentBuilder()
     .setTitle("alian-structure Backend API")

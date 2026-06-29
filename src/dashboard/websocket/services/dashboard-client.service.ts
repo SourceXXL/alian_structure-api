@@ -4,7 +4,7 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { io, Socket } from "socket.io-client";
+import io from "socket.io-client";
 import {
   DashboardEvent,
   BufferedEvent,
@@ -36,7 +36,7 @@ export interface EventHandler {
 export class DashboardClientService {
   private readonly logger = new Logger(DashboardClientService.name);
 
-  private socket: Socket | null = null;
+  private socket: any = null;
   private config: ClientConfig;
   private eventHandlers: Map<string, Set<EventHandler>> = new Map();
 

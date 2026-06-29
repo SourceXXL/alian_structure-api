@@ -27,13 +27,17 @@ describe("PortfolioService", () => {
     id: "test-portfolio-1",
     userId: "test-user-1",
     name: "Test Portfolio",
+    type: "custom",
     status: "active",
     totalValue: 100000,
     currentAllocation: { AAPL: 30, MSFT: 70 },
     targetAllocation: null,
-    assets: [],
+    initialAllocation: {},
+    allocationStrategy: "manual",
     autoRebalanceEnabled: false,
     rebalanceThreshold: 5,
+    assets: [],
+    deletedAt: null,
     save: jest.fn(),
   };
 
@@ -50,23 +54,38 @@ describe("PortfolioService", () => {
     save: jest.fn(),
   };
 
+  const mockOptimization = {
+    id: "opt-1",
+    portfolioId: "test-portfolio-1",
+    method: OptimizationMethod.MEAN_VARIANCE,
+    status: "completed",
+    suggestedAllocation: { AAPL: 40, MSFT: 60 },
+    expectedReturn: 0.08,
+    expectedVolatility: 0.15,
+    expectedSharpeRatio: 0.5,
+    improvementScore: 10,
+    currentAllocation: mockPortfolio.currentAllocation,
+    save: jest.fn(),
+  };
+
   beforeEach(async () => {
     portfolioRepository = {
       create: jest.fn().mockReturnValue(mockPortfolio),
       save: jest.fn().mockResolvedValue(mockPortfolio),
-      findOne: jest.fn().mockResolvedValue(mockPortfolio),
+      findOne: jest.fn(),
       find: jest.fn().mockResolvedValue([mockPortfolio]),
+      delete: jest.fn(),
     };
 
     assetRepository = {
       create: jest.fn().mockReturnValue(mockAsset),
       save: jest.fn().mockResolvedValue(mockAsset),
       find: jest.fn().mockResolvedValue([mockAsset]),
-      findOne: jest.fn().mockResolvedValue(mockAsset),
+      findOne: jest.fn(),
     };
 
     optimizationRepository = {
-      create: jest.fn(),
+      create: jest.fn().mockReturnValue(mockOptimization),
       save: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
@@ -107,9 +126,11 @@ describe("PortfolioService", () => {
 
   describe("createPortfolio", () => {
     it("should create a new portfolio", async () => {
+      portfolioRepository.findOne.mockResolvedValue(null);
+
       const dto: CreatePortfolioDto = {
         name: "Test Portfolio",
-        description: "Test description",
+        type: "custom",
       };
 
       const result = await service.createPortfolio("test-user-1", dto);
@@ -118,15 +139,41 @@ describe("PortfolioService", () => {
         expect.objectContaining({
           name: dto.name,
           userId: "test-user-1",
+          type: "custom",
+          status: "active",
         }),
       );
       expect(portfolioRepository.save).toHaveBeenCalled();
       expect(result).toEqual(mockPortfolio);
     });
+
+    it("should throw if portfolio name already exists", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      const dto: CreatePortfolioDto = {
+        name: "Test Portfolio",
+      };
+
+      await expect(
+        service.createPortfolio("test-user-1", dto),
+      ).rejects.toThrow("Portfolio with this name already exists");
+    });
+
+    it("should throw for empty name", async () => {
+      const dto: CreatePortfolioDto = {
+        name: "   ",
+      };
+
+      await expect(
+        service.createPortfolio("test-user-1", dto),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe("getPortfolio", () => {
     it("should return a portfolio by ID", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
       const result = await service.getPortfolio("test-portfolio-1");
 
       expect(portfolioRepository.findOne).toHaveBeenCalledWith({
@@ -136,12 +183,21 @@ describe("PortfolioService", () => {
       expect(result).toEqual(mockPortfolio);
     });
 
-    it("should throw error if portfolio not found", async () => {
+    it("should throw NotFoundException if portfolio not found", async () => {
       portfolioRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.getPortfolio("non-existent")).rejects.toThrow(
-        "Portfolio not found",
-      );
+      await expect(
+        service.getPortfolio("non-existent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw NotFoundException if portfolio is deleted", async () => {
+      const deletedPortfolio = { ...mockPortfolio, deletedAt: new Date() };
+      portfolioRepository.findOne.mockResolvedValue(deletedPortfolio);
+
+      await expect(
+        service.getPortfolio("test-portfolio-1"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -158,8 +214,104 @@ describe("PortfolioService", () => {
     });
   });
 
+  describe("updatePortfolio", () => {
+    it("should update portfolio properties", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      const updateDto = {
+        name: "Updated Portfolio",
+        description: "Updated description",
+      };
+
+      const result = await service.updatePortfolio(
+        "test-portfolio-1",
+        updateDto,
+      );
+
+      expect(portfolioRepository.save).toHaveBeenCalled();
+      expect(result.name).toBe("Updated Portfolio");
+    });
+
+    it("should archive portfolio when status is ARCHIVED", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      const updateDto = {
+        status: "archived",
+      };
+
+      const result = await service.updatePortfolio(
+        "test-portfolio-1",
+        updateDto,
+      );
+
+      expect(result.status).toBe("archived");
+      expect(result.deletedAt).toBeDefined();
+    });
+
+    it("should validate allocation percentages", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      const updateDto = {
+        currentAllocation: { AAPL: 60, MSFT: 50 },
+      };
+
+      await expect(
+        service.updatePortfolio("test-portfolio-1", updateDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("deletePortfolio", () => {
+    it("should soft delete portfolio", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      await service.deletePortfolio("test-portfolio-1");
+
+      expect(mockPortfolio.status).toBe("archived");
+      expect(mockPortfolio.deletedAt).toBeDefined();
+      expect(portfolioRepository.save).toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException for deleted portfolio", async () => {
+      const deletedPortfolio = { ...mockPortfolio, deletedAt: new Date() };
+      portfolioRepository.findOne.mockResolvedValue(deletedPortfolio);
+
+      await expect(
+        service.deletePortfolio("test-portfolio-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("restorePortfolio", () => {
+    it("should restore archived portfolio", async () => {
+      const archivedPortfolio = {
+        ...mockPortfolio,
+        status: "archived",
+        deletedAt: new Date(),
+      };
+      portfolioRepository.findOne.mockResolvedValue(archivedPortfolio);
+
+      const result = await service.restorePortfolio("test-portfolio-1");
+
+      expect(result.status).toBe("active");
+      expect(result.deletedAt).toBeNull();
+      expect(portfolioRepository.save).toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when restoring non-archived portfolio", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      await expect(
+        service.restorePortfolio("test-portfolio-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe("addAsset", () => {
     it("should add an asset to portfolio", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+      assetRepository.findOne.mockResolvedValue(null);
+
       const result = await service.addAsset(
         "test-portfolio-1",
         "AAPL",
@@ -169,66 +321,126 @@ describe("PortfolioService", () => {
         0,
       );
 
-      expect(assetRepository.findOne).toHaveBeenCalled();
+      expect(assetRepository.create).toHaveBeenCalled();
+      expect(assetRepository.save).toHaveBeenCalled();
       expect(result).toEqual(mockAsset);
     });
-  });
 
-  describe("updateAssetPrice", () => {
-    it("should update asset price", async () => {
-      const newPrice = 160;
+    it("should throw for invalid quantity", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
 
-      const result = await service.updateAssetPrice("asset-1", newPrice);
+      await expect(
+        service.addAsset("test-portfolio-1", "AAPL", "Apple", -10, 150, 0),
+      ).rejects.toThrow(BadRequestException);
+    });
 
-      expect(assetRepository.findOne).toHaveBeenCalledWith({
-        where: { id: "asset-1" },
-      });
-      expect(result.currentPrice).toBeDefined();
+    it("should throw for negative price", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      await expect(
+        service.addAsset("test-portfolio-1", "AAPL", "Apple", 100, -150, 0),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe("runOptimization", () => {
     it("should run portfolio optimization", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+      assetRepository.find.mockResolvedValue([mockAsset]);
       optimizationRepository.create.mockReturnValue({
-        portfolioId: "test-portfolio-1",
-        method: OptimizationMethod.MEAN_VARIANCE,
-        status: "pending",
-        parameters: {},
-        suggestedAllocation: {},
-        currentAllocation: mockPortfolio.currentAllocation,
+        ...mockOptimization,
+        status: "in_progress",
         save: jest.fn(),
       });
-
       optimizationRepository.save
         .mockResolvedValueOnce({
-          id: "opt-1",
-          portfolioId: "test-portfolio-1",
-          method: OptimizationMethod.MEAN_VARIANCE,
+          ...mockOptimization,
           status: "in_progress",
-          suggestedAllocation: {},
-          parameters: {},
-          currentAllocation: mockPortfolio.currentAllocation,
-          save: jest.fn(),
         })
-        .mockResolvedValueOnce({
-          id: "opt-1",
-          status: "completed",
-          suggestedAllocation: { AAPL: 40, MSFT: 60 },
-          expectedReturn: 0.08,
-          expectedVolatility: 0.15,
-          expectedSharpeRatio: 0.5,
-          improvementScore: 10,
-          completedAt: new Date(),
-        });
-
-      assetRepository.save.mockResolvedValue([mockAsset]);
+        .mockResolvedValueOnce(mockOptimization);
 
       const result = await service.runOptimization("test-portfolio-1", {
         method: OptimizationMethod.MEAN_VARIANCE,
-        portfolioId: "test-portfolio-1",
       });
 
       expect(result.status).toBe("completed");
+      expect(optimizationRepository.save).toHaveBeenCalled();
+    });
+
+    it("should throw if portfolio has no assets", async () => {
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+      assetRepository.find.mockResolvedValue([]);
+
+      await expect(
+        service.runOptimization("test-portfolio-1", {
+          method: OptimizationMethod.MEAN_VARIANCE,
+        }),
+      ).rejects.toThrow("Portfolio has no assets to optimize");
+    });
+  });
+
+  describe("approveOptimization", () => {
+    it("should approve completed optimization", async () => {
+      optimizationRepository.findOne.mockResolvedValue(mockOptimization);
+
+      const result = await service.approveOptimization("opt-1", "Looks good");
+
+      expect(result.status).toBe("approved");
+      expect(optimizationRepository.save).toHaveBeenCalled();
+    });
+
+    it("should throw if optimization not found", async () => {
+      optimizationRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.approveOptimization("non-existent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw if optimization is not completed", async () => {
+      const pendingOptimization = {
+        ...mockOptimization,
+        status: "in_progress",
+      };
+      optimizationRepository.findOne.mockResolvedValue(pendingOptimization);
+
+      await expect(
+        service.approveOptimization("opt-1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("implementOptimization", () => {
+    it("should implement approved optimization", async () => {
+      const approvedOptimization = {
+        ...mockOptimization,
+        status: "approved",
+      };
+      optimizationRepository.findOne.mockResolvedValue(approvedOptimization);
+      portfolioRepository.findOne.mockResolvedValue(mockPortfolio);
+
+      const result = await service.implementOptimization("opt-1");
+
+      expect(result.targetAllocation).toEqual(
+        approvedOptimization.suggestedAllocation,
+      );
+      expect(optimizationRepository.save).toHaveBeenCalled();
+    });
+
+    it("should throw if optimization not found", async () => {
+      optimizationRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.implementOptimization("non-existent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw if optimization is not approved", async () => {
+      optimizationRepository.findOne.mockResolvedValue(mockOptimization);
+
+      await expect(
+        service.implementOptimization("opt-1"),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
