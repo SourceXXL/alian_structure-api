@@ -109,7 +109,7 @@ export class FileUploadService implements OnModuleInit {
     );
 
     // Queue the file for background processing
-    const job = await this.uploadQueue.add('process-upload', {
+    const job = await this.uploadQueue.add(PROCESS_UPLOAD_JOB, {
       sessionId: session.id,
       filename,
       buffer: Array.from(buffer), // Convert buffer to array for serialization
