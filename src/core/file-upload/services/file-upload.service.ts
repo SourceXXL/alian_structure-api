@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue, Process, Processor } from '@nestjs/bull';
+import { Queue, Job } from 'bull';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { MoreThan } from 'typeorm';
@@ -24,16 +24,106 @@ interface UploadResult {
   queuePosition?: number;
 }
 
+@Processor(FILE_UPLOAD_QUEUE)
 @Injectable()
 export class FileUploadService implements OnModuleInit {
   private readonly logger = new Logger(FileUploadService.name);
 
   constructor(
     private readonly fileStorageService: FileStorageService,
-  @InjectQueue(FILE_UPLOAD_QUEUE) private readonly uploadQueue: Queue,
-  private readonly schedulerRegistry: SchedulerRegistry,
-  private readonly virusScanner: VirusScannerService,
-) {}
+    @InjectQueue(FILE_UPLOAD_QUEUE) private readonly uploadQueue: Queue,
+    private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly virusScanner: VirusScannerService,
+  ) {}
+
+  /**
+   * Process standard async uploads (single file)
+   */
+  @Process(PROCESS_UPLOAD_JOB)
+  async processUploadJob(job: Job<{
+    sessionId: string;
+    filename: string;
+    buffer: number[];
+    options: {
+      storageBackend?: StorageBackendType;
+      encrypt?: boolean;
+      scanForVirus?: boolean;
+      processImage?: boolean;
+      generateThumbnails?: boolean;
+    };
+  }>) {
+    const { sessionId, filename, buffer, options } = job.data;
+    this.logger.log(`Processing upload job ${job.id} for session ${sessionId}`);
+    
+    try {
+      // Convert array back to buffer
+      const fileBuffer = Buffer.from(buffer);
+      
+      // Update session status
+      const session = await this.fileStorageService['sessionRepository'].findOne({
+        where: { id: sessionId },
+      });
+      
+      if (session) {
+        session.status = 'processing';
+        await this.fileStorageService['sessionRepository'].save(session);
+      }
+      
+      // Process the file
+      const file = await this.fileStorageService.uploadFile(fileBuffer, filename, {
+        storageBackend: options?.storageBackend,
+        encrypt: options?.encrypt,
+        processImage: options?.processImage,
+        generateThumbnails: options?.generateThumbnails,
+      });
+      
+      // Update session with the processed file ID
+      if (session) {
+        session.status = 'completed';
+        session.processedFileId = file.id;
+        session.progress = 100;
+        session.completedAt = new Date();
+        await this.fileStorageService['sessionRepository'].save(session);
+      }
+      
+      this.logger.log(`Successfully processed upload job ${job.id}. File ID: ${file.id}`);
+      return { fileId: file.id, success: true };
+      
+    } catch (error) {
+      this.logger.error(`Failed to process upload job ${job.id}:`, error);
+      
+      // Mark session as failed
+      const session = await this.fileStorageService['sessionRepository'].findOne({
+        where: { id: sessionId },
+      });
+      
+      if (session) {
+        session.status = 'failed';
+        session.errorMessage = (error as Error).message;
+        await this.fileStorageService['sessionRepository'].save(session);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Process assembled file from chunks
+   */
+  @Process(PROCESS_ASSEMBLED_FILE_JOB)
+  async processAssembledFileJob(job: Job<{
+    sessionId: string;
+    filename: string;
+    storageBackend?: StorageBackendType;
+    encrypt?: boolean;
+  }>) {
+    const { sessionId, filename, storageBackend, encrypt } = job.data;
+    this.logger.log(`Processing assembled file job ${job.id} for session ${sessionId}`);
+    
+    // This is now handled directly in the assembleAndProcessCompleteFile method
+    // This processor is kept for backwards compatibility if needed
+    return { success: true, sessionId };
+  }
 
   onModuleInit() {
     // Schedule periodic cleanup job (runs daily at 2 AM)
