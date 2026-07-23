@@ -3,9 +3,10 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
+import { MoreThan } from 'typeorm';
 import { FileStorageService } from './file-storage.service';
 import { VirusScannerService } from './virus-scanner.service';
-import { FILE_UPLOAD_QUEUE, VIRUS_SCAN_JOB, IMAGE_PROCESSING_JOB, METADATA_EXTRACTION_JOB, CLEANUP_JOB } from '../constants/queue.constants';
+import { FILE_UPLOAD_QUEUE, PROCESS_UPLOAD_JOB, PROCESS_ASSEMBLED_FILE_JOB, VIRUS_SCAN_JOB, IMAGE_PROCESSING_JOB, METADATA_EXTRACTION_JOB, CLEANUP_JOB } from '../constants/queue.constants';
 import { StorageBackendType } from '../entities/uploaded-file.entity';
 
 interface UploadOptions {
