@@ -9,10 +9,8 @@ import { FileStorageService } from './services/file-storage.service';
 import { FileValidationService } from './services/file-validation.service';
 import { VirusScannerService } from './services/virus-scanner.service';
 import { ImageProcessingService } from './services/image-processing.service';
-import { MetadataExtractionService } from './services/metadata-extraction.service';
-import { UrlSigningService } from './services/url-signing.service';
-import { GarbageCollectionService } from './services/garbage-collection.service';
-import { UploadProgressService } from './services/upload-progress.service';
+import { MetadataExtractorService } from './services/metadata-extractor.service';
+import { EncryptionService } from './services/encryption.service';
 import { FileUploadController } from './controllers/file-upload.controller';
 import { FileDownloadController } from './controllers/file-download.controller';
 import { LocalStorageBackend } from './storage-backends/local-storage.backend';
@@ -51,10 +49,8 @@ import { FILE_UPLOAD_QUEUE } from './constants/queue.constants';
     FileValidationService,
     VirusScannerService,
     ImageProcessingService,
-    MetadataExtractionService,
-    UrlSigningService,
-    GarbageCollectionService,
-    UploadProgressService,
+    MetadataExtractorService,
+    EncryptionService,
     LocalStorageBackend,
     S3StorageBackend,
     AzureBlobStorageBackend,

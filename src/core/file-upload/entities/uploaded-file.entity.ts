@@ -28,10 +28,16 @@ export class UploadedFileEntity extends BaseEntity {
   filename: string;
 
   @Column()
+  storedFilename: string;
+
+  @Column()
   originalName: string;
 
   @Column()
   mimeType: string;
+
+  @Column({ default: 0 })
+  downloadCount: number = 0;
 
   @Column('bigint')
   size: number;
