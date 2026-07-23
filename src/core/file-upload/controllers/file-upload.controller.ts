@@ -218,17 +218,32 @@ export class FileUploadController {
   }
 
   /**
-   * Get the status of an upload
+   * Get the progress/status of an upload session
    */
   @Get('status/:sessionId')
   async getUploadStatus(@Param('sessionId') sessionId: string) {
     try {
-      const status = await this.fileUploadService.getUploadStatus(sessionId);
+      const progress = await this.uploadProgressService.getUploadProgress(sessionId);
+      
+      if (!progress) {
+        throw new HttpException(
+          {
+            success: false,
+            error: {
+              code: 'SESSION_NOT_FOUND',
+              message: 'Upload session not found',
+            },
+          },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      
       return {
         success: true,
-        data: status,
+        data: progress,
       };
     } catch (error) {
+      this.logger.error(`Failed to get upload status for session ${sessionId}: ${(error as Error).message}`);
       throw new HttpException(
         {
           success: false,
@@ -237,7 +252,7 @@ export class FileUploadController {
             message: 'Failed to retrieve upload status',
           },
         },
-        HttpStatus.NOT_FOUND,
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
