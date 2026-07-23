@@ -20,7 +20,7 @@ export class LocalStorageBackend implements StorageBackend {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly jwtService: JwtService,
+    private readonly urlSigningService: UrlSigningService,
   ) {
     this.uploadPath = this.configService.get<string>(
       'LOCAL_STORAGE_PATH',
@@ -145,14 +145,8 @@ export class LocalStorageBackend implements StorageBackend {
   }
 
   async getSignedUrl(fileId: string, expiresIn: number = 3600): Promise<string> {
-    // Create a signed JWT token that expires after the specified time
-    const payload = {
-      sub: fileId,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + expiresIn,
-    };
-    
-    const token = this.jwtService.sign(payload);
+    // Use the centralized URL signing service to generate a signed token
+    const { token, expiry } = this.urlSigningService.generateSignedUrl(fileId, expiresIn);
     
     // Return a URL that includes the signed token as a query parameter
     const relativePath = `/api/files/download/${fileId}?token=${token}`;
