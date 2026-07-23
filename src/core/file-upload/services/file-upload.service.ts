@@ -373,7 +373,7 @@ export class FileUploadService implements OnModuleInit {
     await this.fileStorageService['sessionRepository'].save(session);
 
     // Re-queue for processing
-    const job = await this.uploadQueue.add('process-upload', {
+    const job = await this.uploadQueue.add(PROCESS_UPLOAD_JOB, {
       sessionId,
       filename: session.filename,
       storageBackend: session.storageBackend,
