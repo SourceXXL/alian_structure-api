@@ -225,27 +225,86 @@ export class FileUploadService implements OnModuleInit {
     });
     
     if (!session) {
-      this.logger.error(`Cannot assemble file: session ${sessionId} not found');
+      this.logger.error(`Cannot assemble file: session ${sessionId} not found`);
       return;
     }
 
-    // In a production environment, you would:
-    // 1. Download all chunk files from temporary storage
-    // 2. Concatenate them into the complete file buffer
-    // 3. Pass the complete buffer to the upload pipeline
-    // 4. Delete the temporary chunk files
-    // 5. Update the session status to completed
-
-    // For this implementation, we'll simulate the assembly process
-    this.logger.log(`Assembled complete file from chunks for session ${sessionId}`);
-    
-    // Queue for full processing
-    await this.uploadQueue.add('process-assembled-file', {
-      sessionId,
-      filename: session.filename,
-      storageBackend: session.storageBackend,
-      encrypt: session.encrypt,
-    });
+    try {
+      this.logger.log(`Starting assembly of chunks for session ${sessionId}`);
+      
+      // 1. Get the storage backend
+      const backend = this.fileStorageService['storageBackendFactory'].getBackend(session.storageBackend);
+      
+      // 2. Sort chunks to ensure correct order
+      const sortedChunks = [...(session.receivedChunks || [])].sort((a, b) => a - b);
+      this.logger.log(`Processing ${sortedChunks.length} chunks in order: ${sortedChunks.join(', ')}`);
+      
+      // 3. Download all chunk files and concatenate
+      const completeBufferChunks: Buffer[] = [];
+      for (const chunkNumber of sortedChunks) {
+        const tempFilename = `${sessionId}_chunk_${chunkNumber}`;
+        this.logger.log(`Downloading chunk ${chunkNumber}: ${tempFilename}`);
+        
+        try {
+          const stream = await backend.download(tempFilename);
+          const chunkData: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunkData.push(Buffer.from(chunk));
+          }
+          completeBufferChunks.push(Buffer.concat(chunkData));
+          
+          // 4. Delete the temporary chunk file after successful download
+          await backend.delete(tempFilename);
+          this.logger.log(`Deleted temporary chunk file: ${tempFilename}`);
+        } catch (error) {
+          this.logger.error(`Failed to process chunk ${chunkNumber}:`, error);
+          throw error;
+        }
+      }
+      
+      // 5. Concatenate all chunks into the complete file buffer
+      const completeBuffer = Buffer.concat(completeBufferChunks);
+      this.logger.log(`Successfully assembled complete file. Total size: ${completeBuffer.length} bytes`);
+      
+      // 6. Update session status to processing
+      session.status = 'processing';
+      await this.fileStorageService['sessionRepository'].save(session);
+      
+      // 7. Pass the complete buffer to the standard upload pipeline
+      const file = await this.fileStorageService.uploadFile(completeBuffer, session.filename, {
+        storageBackend: session.storageBackend,
+        encrypt: session.encrypt,
+        processImage: true,
+        generateThumbnails: true,
+      });
+      
+      // 8. Update session status to completed and link to the processed file
+      session.status = 'completed';
+      session.processedFileId = file.id;
+      session.progress = 100;
+      await this.fileStorageService['sessionRepository'].save(session);
+      
+      this.logger.log(`Successfully processed assembled file for session ${sessionId}. File ID: ${file.id}`);
+      
+    } catch (error) {
+      this.logger.error(`Failed to assemble and process file for session ${sessionId}:`, error);
+      
+      // Update session status to failed
+      session.status = 'failed';
+      session.errorMessage = (error as Error).message;
+      await this.fileStorageService['sessionRepository'].save(session);
+      
+      // Clean up any remaining temporary files
+      try {
+        const backend = this.fileStorageService['storageBackendFactory'].getBackend(session.storageBackend);
+        for (const chunkNumber of session.receivedChunks || []) {
+          const tempFilename = `${sessionId}_chunk_${chunkNumber}`;
+          await backend.delete(tempFilename).catch(() => {});
+        }
+      } catch (cleanupError) {
+        this.logger.error(`Failed to clean up temporary files after assembly failure:`, cleanupError);
+      }
+    }
   }
 
   /**

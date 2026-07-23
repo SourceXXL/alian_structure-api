@@ -1,11 +1,14 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/database/entities/base.entity';
+import { StorageBackendType } from './uploaded-file.entity';
 
 export enum UploadSessionStatus {
   INITIATED = 'initiated',
   UPLOADING = 'uploading',
+  PROCESSING = 'processing',
   COMPLETED = 'completed',
   FAILED = 'failed',
+  CANCELLED = 'cancelled',
   ABORTED = 'aborted',
 }
 
@@ -14,8 +17,8 @@ export class UploadSessionEntity extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  fileId: string; // Corresponding file ID
+  @Column({ nullable: true })
+  processedFileId?: string; // ID of the fully processed file after assembly
 
   @Column()
   filename: string;
@@ -68,4 +71,14 @@ export class UploadSessionEntity extends BaseEntity {
 
   @Column({ nullable: true })
   expiresAt: Date; // Session expires if not completed by this time
+
+  @Column({
+    type: 'enum',
+    enum: StorageBackendType,
+    default: StorageBackendType.LOCAL,
+  })
+  storageBackend: StorageBackendType;
+
+  @Column({ default: false })
+  encrypt: boolean;
 }
