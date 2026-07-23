@@ -98,6 +98,12 @@ export class UploadedFileEntity extends BaseEntity {
   @Column({ nullable: true })
   isOrphaned: boolean = false;
 
+  @Column({ default: false })
+  markedForDeletion: boolean = false;
+
+  @Column({ nullable: true })
+  deletedAt?: Date;
+
   @Column({ nullable: true })
   orphanedAt?: Date;
 
