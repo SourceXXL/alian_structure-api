@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
 import { createWriteStream, createReadStream, unlink, stat, readdir } from 'fs';
 import { mkdir } from 'fs/promises';
@@ -8,6 +7,7 @@ import { join, dirname, basename } from 'path';
 import { Stream } from 'stream';
 import { promisify } from 'util';
 import { StorageBackend, StorageFile, UploadOptions } from '../interfaces/storage-backend.interface';
+import { UrlSigningService } from '../services/url-signing.service';
 
 const unlinkAsync = promisify(unlink);
 const statAsync = promisify(stat);
