@@ -15,6 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileUploadService } from '../services/file-upload.service';
 import { FileStorageService } from '../services/file-storage.service';
+import { UploadProgressService } from '../services/upload-progress.service';
 import { StorageBackendType } from '../entities/uploaded-file.entity';
 import { AppException } from '../../../common/errors/app.exception';
 
@@ -40,6 +41,7 @@ export class FileUploadController {
   constructor(
     private readonly fileUploadService: FileUploadService,
     private readonly fileStorageService: FileStorageService,
+    private readonly uploadProgressService: UploadProgressService,
   ) {}
 
   /**
