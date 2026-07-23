@@ -69,10 +69,22 @@ export class UploadedFileEntity extends BaseEntity {
   encryptionKeyId?: string;
 
   @Column({ nullable: true })
+  encryptionIv?: string;
+
+  @Column({ nullable: true })
+  encryptionTag?: string;
+
+  @Column({ nullable: true })
   virusScanStatus?: string;
 
   @Column({ nullable: true })
   virusScanResult?: string;
+
+  @Column({ default: false })
+  virusScanned: boolean = false;
+
+  @Column({ nullable: true })
+  virusScanDate?: Date;
 
   @Column({ nullable: true })
   uploadedBy: string; // User ID of uploader
