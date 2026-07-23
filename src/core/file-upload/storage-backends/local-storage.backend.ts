@@ -166,6 +166,16 @@ export class LocalStorageBackend implements StorageBackend {
   }
 
   private getFilePath(fileId: string): string {
+    // Check all subdirectories for the file
+    // First check if it's a temporary chunk file
+    if (fileId.includes('_chunk_')) {
+      return join(this.uploadPath, 'temp', `${fileId}`);
+    }
+    // Check if it's a thumbnail
+    if (fileId.includes('_')) {
+      return join(this.uploadPath, 'thumbnails', `${fileId}.*`);
+    }
+    // Default to permanent storage
     return join(this.uploadPath, 'permanent', `${fileId}.*`);
   }
 
