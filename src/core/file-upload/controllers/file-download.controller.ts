@@ -8,9 +8,9 @@ import {
   Logger,
   Query,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
 import { FileStorageService } from '../services/file-storage.service';
+import { UrlSigningService } from '../services/url-signing.service';
 import { AppException } from '../../../common/errors/app.exception';
 
 @Controller('api/files')
@@ -19,7 +19,7 @@ export class FileDownloadController {
 
   constructor(
     private readonly fileStorageService: FileStorageService,
-    private readonly jwtService: JwtService,
+    private readonly urlSigningService: UrlSigningService,
   ) {}
 
   /**
@@ -37,17 +37,14 @@ export class FileDownloadController {
 
       // Validate JWT token if present (for signed URLs)
       if (token) {
-        try {
-          const payload = this.jwtService.verify(token);
-          // Verify the token is for the requested file
-          if (payload.sub !== fileId) {
-            throw new HttpException('Invalid token for this file', HttpStatus.FORBIDDEN);
-          }
-          this.logger.log(`Validated signed URL token for file ${fileId}, expires at ${new Date(payload.exp * 1000)}`);
-        } catch (jwtError) {
-          this.logger.error(`JWT validation failed for file ${fileId}: ${(jwtError as Error).message}`);
+        const isValid = this.urlSigningService.verifySignedUrl(token, fileId);
+        if (!isValid) {
+          this.logger.error(`URL signature validation failed for file ${fileId}`);
           throw new HttpException('Invalid or expired download token', HttpStatus.UNAUTHORIZED);
         }
+        
+        const expiry = this.urlSigningService.getTokenExpiry(token);
+        this.logger.log(`Validated signed URL token for file ${fileId}, expires at ${expiry?.toISOString()}`);
       }
 
       const { buffer, mimeType, filename } = await this.fileStorageService.downloadFile(fileId);
