@@ -8,6 +8,7 @@ import {
   Logger,
   Query,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
 import { FileStorageService } from '../services/file-storage.service';
 import { AppException } from '../../../common/errors/app.exception';
