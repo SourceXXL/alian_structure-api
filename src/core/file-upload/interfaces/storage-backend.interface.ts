@@ -16,6 +16,8 @@ export interface UploadOptions {
   encrypt?: boolean;
   metadata?: Record<string, any>;
   generateThumbnails?: boolean;
+  isTemporary?: boolean;
+  isThumbnail?: boolean;
 }
 
 export interface DownloadOptions {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
 import { createWriteStream, createReadStream, unlink, stat, readdir } from 'fs';
 import { mkdir } from 'fs/promises';
@@ -17,7 +18,10 @@ export class LocalStorageBackend implements StorageBackend {
   private readonly uploadPath: string;
   private readonly baseUrl: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
+  ) {
     this.uploadPath = this.configService.get<string>(
       'LOCAL_STORAGE_PATH',
       './uploads',
@@ -95,13 +99,13 @@ export class LocalStorageBackend implements StorageBackend {
   }
 
   async download(fileId: string): Promise<Stream> {
-    const filePath = this.getFilePath(fileId);
+    const filePath = await this.getFilePath(fileId);
     return createReadStream(filePath);
   }
 
   async delete(fileId: string): Promise<boolean> {
     try {
-      const filePath = this.getFilePath(fileId);
+      const filePath = await this.getFilePath(fileId);
       await unlinkAsync(filePath);
       return true;
     } catch {
@@ -111,7 +115,7 @@ export class LocalStorageBackend implements StorageBackend {
 
   async exists(fileId: string): Promise<boolean> {
     try {
-      const filePath = this.getFilePath(fileId);
+      const filePath = await this.getFilePath(fileId);
       await statAsync(filePath);
       return true;
     } catch {
@@ -121,7 +125,7 @@ export class LocalStorageBackend implements StorageBackend {
 
   async getMetadata(fileId: string): Promise<StorageFile | null> {
     try {
-      const filePath = this.getFilePath(fileId);
+      const filePath = await this.getFilePath(fileId);
       const stats = await statAsync(filePath);
       
       return {
@@ -141,14 +145,22 @@ export class LocalStorageBackend implements StorageBackend {
   }
 
   async getSignedUrl(fileId: string, expiresIn: number = 3600): Promise<string> {
-    // For local storage, we'll implement a signed URL system using JWT
-    // This returns a URL that includes a signed token for temporary access
-    const relativePath = `/api/files/download/${fileId}`;
+    // Create a signed JWT token that expires after the specified time
+    const payload = {
+      sub: fileId,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + expiresIn,
+    };
+    
+    const token = this.jwtService.sign(payload);
+    
+    // Return a URL that includes the signed token as a query parameter
+    const relativePath = `/api/files/download/${fileId}?token=${token}`;
     return `${this.baseUrl}${relativePath}`;
   }
 
   async getSize(fileId: string): Promise<number> {
-    const filePath = this.getFilePath(fileId);
+    const filePath = await this.getFilePath(fileId);
     const stats = await statAsync(filePath);
     return stats.size;
   }
@@ -165,18 +177,38 @@ export class LocalStorageBackend implements StorageBackend {
     );
   }
 
-  private getFilePath(fileId: string): string {
+  private async getFilePath(fileId: string): Promise<string> {
     // Check all subdirectories for the file
     // First check if it's a temporary chunk file
     if (fileId.includes('_chunk_')) {
-      return join(this.uploadPath, 'temp', `${fileId}`);
+      const tempPath = join(this.uploadPath, 'temp', `${fileId}`);
+      try {
+        await statAsync(tempPath);
+        return tempPath;
+      } catch {
+        // Continue searching if not found in temp
+      }
     }
+    
     // Check if it's a thumbnail
     if (fileId.includes('_')) {
-      return join(this.uploadPath, 'thumbnails', `${fileId}.*`);
+      const thumbnailsDir = join(this.uploadPath, 'thumbnails');
+      const thumbnailFiles = await readdirAsync(thumbnailsDir);
+      const matchingThumbnail = thumbnailFiles.find(file => file.startsWith(fileId));
+      if (matchingThumbnail) {
+        return join(thumbnailsDir, matchingThumbnail);
+      }
     }
+    
     // Default to permanent storage
-    return join(this.uploadPath, 'permanent', `${fileId}.*`);
+    const permanentDir = join(this.uploadPath, 'permanent');
+    const permanentFiles = await readdirAsync(permanentDir);
+    const matchingFile = permanentFiles.find(file => file.startsWith(fileId));
+    if (matchingFile) {
+      return join(permanentDir, matchingFile);
+    }
+    
+    throw new Error(`File with ID ${fileId} not found in any storage directory`);
   }
 
   private getMimeType(filename: string): string {

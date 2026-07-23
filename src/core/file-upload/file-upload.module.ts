@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MulterModule } from '@nestjs/platform-express';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -25,6 +26,12 @@ import { FILE_UPLOAD_QUEUE } from './constants/queue.constants';
 @Module({
   imports: [
     ConfigModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'default-jwt-secret-change-in-production',
+      signOptions: {
+        expiresIn: '1h',
+      },
+    }),
     TypeOrmModule.forFeature([
       UploadedFileEntity,
       FileMetadataEntity,
