@@ -1,0 +1,104 @@
+import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { FileMetadataEntity } from './file-metadata.entity';
+import { BaseEntity } from '../../../common/database/entities/base.entity';
+
+export enum StorageBackendType {
+  LOCAL = 'local',
+  S3 = 's3',
+  AZURE_BLOB = 'azure_blob',
+}
+
+export enum FileStatus {
+  PENDING = 'pending',
+  UPLOADING = 'uploading',
+  PROCESSING = 'processing',
+  SCANNING = 'scanning',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  QUARANTINED = 'quarantined',
+  DELETED = 'deleted',
+}
+
+@Entity('uploaded_files')
+export class UploadedFileEntity extends BaseEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column()
+  filename: string;
+
+  @Column()
+  originalName: string;
+
+  @Column()
+  mimeType: string;
+
+  @Column('bigint')
+  size: number;
+
+  @Column()
+  path: string;
+
+  @Column()
+  hash: string; // SHA-256 hash of file content for integrity verification
+
+  @Column({
+    type: 'enum',
+    enum: StorageBackendType,
+    default: StorageBackendType.LOCAL,
+  })
+  storageBackend: StorageBackendType;
+
+  @Column({
+    type: 'enum',
+    enum: FileStatus,
+    default: FileStatus.PENDING,
+  })
+  status: FileStatus;
+
+  @Column({ default: false })
+  encrypted: boolean;
+
+  @Column({ nullable: true })
+  encryptionKeyId?: string;
+
+  @Column({ nullable: true })
+  virusScanStatus?: string;
+
+  @Column({ nullable: true })
+  virusScanResult?: string;
+
+  @Column({ nullable: true })
+  uploadedBy: string; // User ID of uploader
+
+  @Column({ nullable: true })
+  lastAccessedAt?: Date;
+
+  @Column({ nullable: true })
+  accessCount: number = 0;
+
+  @Column({ nullable: true })
+  isOrphaned: boolean = false;
+
+  @Column({ nullable: true })
+  orphanedAt?: Date;
+
+  @Column({ type: 'jsonb', nullable: true })
+  thumbnailUrls?: Record<string, string>; // { '100x100': 'url', '200x200': 'url' }
+
+  @OneToOne(() => FileMetadataEntity, (metadata) => metadata.file, {
+    cascade: true,
+    eager: true,
+  })
+  @JoinColumn()
+  metadata: FileMetadataEntity;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @Column({ nullable: true })
+  expiresAt?: Date; // For temporary files
+}
