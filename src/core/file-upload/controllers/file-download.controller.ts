@@ -17,7 +17,10 @@ import { AppException } from '../../../common/errors/app.exception';
 export class FileDownloadController {
   private readonly logger = new Logger(FileDownloadController.name);
 
-  constructor(private readonly fileStorageService: FileStorageService) {}
+  constructor(
+    private readonly fileStorageService: FileStorageService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   /**
    * Download a file directly
@@ -26,10 +29,26 @@ export class FileDownloadController {
   async downloadFile(
     @Param('fileId') fileId: string,
     @Query('inline') inline: string = 'false',
+    @Query('token') token?: string,
     @Res() res: Response,
   ) {
     try {
       this.logger.log(`Download request for file: ${fileId}`);
+
+      // Validate JWT token if present (for signed URLs)
+      if (token) {
+        try {
+          const payload = this.jwtService.verify(token);
+          // Verify the token is for the requested file
+          if (payload.sub !== fileId) {
+            throw new HttpException('Invalid token for this file', HttpStatus.FORBIDDEN);
+          }
+          this.logger.log(`Validated signed URL token for file ${fileId}, expires at ${new Date(payload.exp * 1000)}`);
+        } catch (jwtError) {
+          this.logger.error(`JWT validation failed for file ${fileId}: ${(jwtError as Error).message}`);
+          throw new HttpException('Invalid or expired download token', HttpStatus.UNAUTHORIZED);
+        }
+      }
 
       const { buffer, mimeType, filename } = await this.fileStorageService.downloadFile(fileId);
       
