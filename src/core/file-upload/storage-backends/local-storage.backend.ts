@@ -42,7 +42,15 @@ export class LocalStorageBackend implements StorageBackend {
     filename: string,
     options?: UploadOptions,
   ): Promise<StorageFile> {
-    const filePath = join(this.uploadPath, 'permanent', filename);
+    // Determine which directory to store the file in
+    let subDir = 'permanent';
+    if (options?.isTemporary) {
+      subDir = 'temp';
+    } else if (options?.isThumbnail) {
+      subDir = 'thumbnails';
+    }
+    
+    const filePath = join(this.uploadPath, subDir, filename);
     const fileDir = dirname(filePath);
     
     await mkdir(fileDir, { recursive: true });
