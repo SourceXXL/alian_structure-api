@@ -62,9 +62,7 @@ export class RoleSeederService implements OnModuleInit {
     }
 
     const user = await this.userRepository.findOne({
-      where: email
-        ? { email }
-        : { walletAddress: wallet!.toLowerCase() },
+      where: email ? { email } : { walletAddress: wallet!.toLowerCase() },
     });
 
     const target = email ?? wallet;

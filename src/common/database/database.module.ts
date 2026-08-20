@@ -16,12 +16,15 @@ export class DatabaseModule {
   static forRootAsync(options: {
     imports?: any[];
     inject?: any[];
-    useFactory: (...args: any[]) => Promise<TypeOrmModuleOptions> | TypeOrmModuleOptions;
+    useFactory: (
+      ...args: any[]
+    ) => Promise<TypeOrmModuleOptions> | TypeOrmModuleOptions;
   }): DynamicModule {
     const dataSourceProvider: Provider = {
       provide: DATABASE_DATA_SOURCE,
       useFactory: async (configService: ConfigService) => {
-        const config: TypeOrmModuleOptions = await options.useFactory(configService);
+        const config: TypeOrmModuleOptions =
+          await options.useFactory(configService);
         const dataSource = new DataSource(config as any);
         try {
           await dataSource.initialize();
@@ -48,7 +51,10 @@ export class DatabaseModule {
     };
   }
 
-  static forFeature(options: { entities?: any[]; imports?: any[] }): DynamicModule {
+  static forFeature(options: {
+    entities?: any[];
+    imports?: any[];
+  }): DynamicModule {
     return {
       module: DatabaseModule,
       imports: [

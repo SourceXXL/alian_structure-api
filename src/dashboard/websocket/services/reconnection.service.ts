@@ -210,7 +210,8 @@ export class WebSocketClientManager {
   private socket: any = null;
   private reconnectService: ReconnectionService;
   private eventBuffer: any[] = [];
-  private messageHandlers: Map<string, Function[]> = new Map();
+  private messageHandlers: Map<string, ((...args: any[]) => void)[]> =
+    new Map();
   private connectionState:
     | "disconnected"
     | "connecting"
@@ -455,7 +456,7 @@ export class WebSocketClientManager {
   /**
    * Register event handler
    */
-  on(event: string, handler: Function): void {
+  on(event: string, handler: (...args: any[]) => void): void {
     if (!this.messageHandlers.has(event)) {
       this.messageHandlers.set(event, []);
     }
@@ -465,7 +466,7 @@ export class WebSocketClientManager {
   /**
    * Remove event handler
    */
-  off(event: string, handler: Function): void {
+  off(event: string, handler: (...args: any[]) => void): void {
     const handlers = this.messageHandlers.get(event);
     if (handlers) {
       const index = handlers.indexOf(handler);

@@ -8,6 +8,18 @@ import { EnhancedAuthService } from "../../auth/enhanced-auth.service";
 import { EmailService } from "../../auth/email.service";
 import { RegisterDto, LoginDto } from "../../auth/dto/auth.dto";
 import { KycStatus } from "../../user/entities/user.entity";
+import * as bcrypt from "bcrypt";
+
+jest.mock("bcrypt");
+jest.mock("speakeasy", () => ({
+  generateSecret: jest.fn().mockReturnValue({
+    base32: "SECRET",
+    otpauth_url: "otpauth://totp/test",
+  }),
+}));
+jest.mock("qrcode", () => ({
+  toDataURL: jest.fn().mockResolvedValue("qr-code-url"),
+}));
 
 describe("EnhancedAuthService", () => {
   let service: EnhancedAuthService;
@@ -105,7 +117,7 @@ describe("EnhancedAuthService", () => {
       jest.spyOn(refreshTokenRepository, "create").mockReturnValue({} as any);
       jest.spyOn(refreshTokenRepository, "save").mockResolvedValue({} as any);
 
-      const result = await service.register(registerDto, "127.0.0.1", "test-agent");
+      const result = await service.register(registerDto, "127.0.0.1", "test-agent"););
 
       expect(result).toHaveProperty("accessToken");
       expect(result).toHaveProperty("refreshToken");
@@ -138,10 +150,7 @@ describe("EnhancedAuthService", () => {
       jest.spyOn(refreshTokenRepository, "create").mockReturnValue({} as any);
       jest.spyOn(refreshTokenRepository, "save").mockResolvedValue({} as any);
 
-      // Mock bcrypt.compare
-      jest.mock("bcrypt", () => ({
-        compare: jest.fn().mockResolvedValue(true),
-      }));
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.login(loginDto, "127.0.0.1", "test-agent");
 
@@ -158,10 +167,7 @@ describe("EnhancedAuthService", () => {
 
       jest.spyOn(userRepository, "findOne").mockResolvedValue(mockUser as any);
 
-      // Mock bcrypt.compare
-      jest.mock("bcrypt", () => ({
-        compare: jest.fn().mockResolvedValue(false),
-      }));
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
       await expect(
         service.login(loginDto, "127.0.0.1", "test-agent"),
@@ -175,19 +181,6 @@ describe("EnhancedAuthService", () => {
       jest.spyOn(twoFactorRepository, "findOne").mockResolvedValue(null);
       jest.spyOn(twoFactorRepository, "create").mockReturnValue({} as any);
       jest.spyOn(twoFactorRepository, "save").mockResolvedValue({} as any);
-
-      // Mock speakeasy
-      jest.mock("speakeasy", () => ({
-        generateSecret: jest.fn().mockReturnValue({
-          base32: "SECRET",
-          otpauth_url: "otpauth://totp/test",
-        }),
-      }));
-
-      // Mock qrcode
-      jest.mock("qrcode", () => ({
-        toDataURL: jest.fn().mockResolvedValue("qr-code-url"),
-      }));
 
       const result = await service.setupTwoFactor("user-id", { type: "totp" });
 

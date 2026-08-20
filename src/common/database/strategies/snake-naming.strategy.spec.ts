@@ -11,7 +11,9 @@ describe("SnakeNamingStrategy", () => {
     });
 
     it("converts pascal case to snake case", () => {
-      expect(strategy.tableName("UserProfile", undefined)).toBe("user_profiles");
+      expect(strategy.tableName("UserProfile", undefined)).toBe(
+        "user_profiles",
+      );
     });
 
     it("handles single word names", () => {
@@ -21,11 +23,15 @@ describe("SnakeNamingStrategy", () => {
 
   describe("columnName", () => {
     it("handles custom column names", () => {
-      expect(strategy.columnName("createdAt", "created_at", [])).toBe("created_at");
+      expect(strategy.columnName("createdAt", "created_at", [])).toBe(
+        "created_at",
+      );
     });
 
     it("handles embedded prefixes", () => {
-      expect(strategy.columnName("name", undefined, ["address"])).toBe("address_name");
+      expect(strategy.columnName("name", undefined, ["address"])).toBe(
+        "address_name",
+      );
     });
   });
 
@@ -37,7 +43,9 @@ describe("SnakeNamingStrategy", () => {
 
   describe("joinTableName", () => {
     it("generates join table name", () => {
-      expect(strategy.joinTableName("User", "Role", "roles", "users")).toBe("join__user_roles_users__role");
+      expect(strategy.joinTableName("User", "Role", "roles", "users")).toBe(
+        "join__user_roles_users__role",
+      );
     });
   });
 
@@ -49,7 +57,9 @@ describe("SnakeNamingStrategy", () => {
 
   describe("indexName", () => {
     it("generates index name", () => {
-      expect(strategy.indexName("users", ["email", "id"])).toBe("users_email_id_idx");
+      expect(strategy.indexName("users", ["email", "id"])).toBe(
+        "users_email_id_idx",
+      );
     });
   });
 });

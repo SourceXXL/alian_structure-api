@@ -8,8 +8,14 @@ export default {
   pool: {
     max: parseInt(process.env.DB_POOL_MAX ?? "50", 10),
     min: parseInt(process.env.DB_POOL_MIN ?? "10", 10),
-    idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT ?? "60000", 10),
-    connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONNECTION_TIMEOUT ?? "10000", 10),
+    idleTimeoutMillis: parseInt(
+      process.env.DB_POOL_IDLE_TIMEOUT ?? "60000",
+      10,
+    ),
+    connectionTimeoutMillis: parseInt(
+      process.env.DB_POOL_CONNECTION_TIMEOUT ?? "10000",
+      10,
+    ),
   },
   ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: true } : undefined,
   synchronize: false,

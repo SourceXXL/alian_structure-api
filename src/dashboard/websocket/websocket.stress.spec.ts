@@ -45,7 +45,7 @@ class MockSocket {
   public connected: boolean = false;
   public id: string;
   public auth: any = {};
-  public listeners: Map<string, Function[]> = new Map();
+  public listeners: Map<string, ((...args: any[]) => void)[]> = new Map();
 
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
@@ -86,14 +86,14 @@ class MockSocket {
     this.emit("disconnect", "io client disconnect");
   }
 
-  on(event: string, callback: Function) {
+  on(event: string, callback: (...args: any[]) => void) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
     this.listeners.get(event).push(callback);
   }
 
-  off(event: string, callback: Function) {
+  off(event: string, callback: (...args: any[]) => void) {
     const handlers = this.listeners.get(event);
     if (handlers) {
       const index = handlers.indexOf(callback);
@@ -180,10 +180,7 @@ describe("WebSocket Stress Tests", () => {
     // Clear all connections and buffers before each test
     eventBuffer.clearAllBuffers();
     // Clear all connections from the connection manager to prevent state leakage
-    const allClients = Array.from(
-      { length: 2000 },
-      (_, i) => `client-${i}`,
-    );
+    const allClients = Array.from({ length: 2000 }, (_, i) => `client-${i}`);
     for (const clientId of allClients) {
       connectionManager.removeConnection(clientId);
     }

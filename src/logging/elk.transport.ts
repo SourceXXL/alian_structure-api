@@ -55,7 +55,9 @@ export class ElkTransport extends Transport {
   private _client: any | null = null; // typed as any to avoid hard es dependency
 
   constructor(private readonly opts: ElkTransportOptions = {}) {
-    super({ level: opts.level ?? process.env.ELASTICSEARCH_LOG_LEVEL ?? "info" });
+    super({
+      level: opts.level ?? process.env.ELASTICSEARCH_LOG_LEVEL ?? "info",
+    });
 
     this._indexPrefix =
       opts.indexPrefix ??

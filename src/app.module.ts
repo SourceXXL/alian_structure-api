@@ -104,6 +104,7 @@ import { KycGuard } from "./common/guard/kyc.guard";
 import { StrategyAuthGuard } from "./core/auth/guards/strategy-auth.guard";
 import { GlobalExceptionFilter } from "./common/filters/global-exception.filter";
 import { SubmissionVerifierService } from "./blockchain/oracle/submission-verifier.service";
+import { SearchModule } from "./search/search.module";
 import { LoggingMiddleware } from "./common/middleware/logging.middleware";
 import { ProfilingMiddleware } from "./profiling/profiling.middleware";
 
@@ -211,6 +212,7 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
     ProfilingModule,
     EmailModule,
     AgentReviewsModule,
+    SearchModule,
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (cfg: ConfigService) => ({

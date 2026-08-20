@@ -28,7 +28,10 @@ describe("sanitize.util", () => {
     });
 
     it("redacts sensitive fields in a flat object", () => {
-      const result = sanitizeValue({ username: "alice", password: "s3cret" }) as any;
+      const result = sanitizeValue({
+        username: "alice",
+        password: "s3cret",
+      }) as any;
       expect(result.username).toBe("alice");
       expect(result.password).toBe(REDACTED);
     });

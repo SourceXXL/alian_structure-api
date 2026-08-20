@@ -16,7 +16,11 @@ import { Injectable, NestMiddleware } from "@nestjs/common";
 import { Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { LoggerService } from "./logger.service";
-import { sanitizeHeaders, sanitizeObject, sanitizeQuery } from "./sanitize.util";
+import {
+  sanitizeHeaders,
+  sanitizeObject,
+  sanitizeQuery,
+} from "./sanitize.util";
 import { LogLevel } from "./winston.config";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +40,10 @@ export interface HttpLoggingConfig {
    * Per-route log-level overrides.  Evaluated in order; first match wins.
    * A level of `"silent"` suppresses the log entry entirely.
    */
-  routeOverrides?: Array<{ pattern: RegExp | string; level: LogLevel | "silent" }>;
+  routeOverrides?: Array<{
+    pattern: RegExp | string;
+    level: LogLevel | "silent";
+  }>;
 }
 
 const DEFAULT_CONFIG: Required<HttpLoggingConfig> = {

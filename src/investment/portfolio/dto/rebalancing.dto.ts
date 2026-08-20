@@ -19,7 +19,10 @@ export class TriggerRebalancingDto {
   @IsString()
   portfolioId: string;
 
-  @ApiProperty({ description: "The trigger for the rebalancing event", enum: RebalanceTrigger })
+  @ApiProperty({
+    description: "The trigger for the rebalancing event",
+    enum: RebalanceTrigger,
+  })
   @IsEnum(RebalanceTrigger)
   trigger: RebalanceTrigger;
 
@@ -55,24 +58,33 @@ export class ExecuteRebalancingDto {
   @IsString()
   executionNotes?: string;
 
-  @ApiPropertyOptional({ description: "Actual cost of the rebalancing execution" })
+  @ApiPropertyOptional({
+    description: "Actual cost of the rebalancing execution",
+  })
   @IsOptional()
   @IsNumber()
   actualCost?: number;
 
-  @ApiPropertyOptional({ description: "Slippage during the rebalancing execution" })
+  @ApiPropertyOptional({
+    description: "Slippage during the rebalancing execution",
+  })
   @IsOptional()
   @IsNumber()
   executionSlippage?: number;
 
-  @ApiPropertyOptional({ description: "Perform a dry run without executing trades" })
+  @ApiPropertyOptional({
+    description: "Perform a dry run without executing trades",
+  })
   @IsOptional()
   @IsBoolean()
   dryRun?: boolean;
 }
 
 export class ScheduleRebalancingDto {
-  @ApiProperty({ description: "Frequency of the rebalancing schedule", enum: ["daily", "weekly", "monthly", "custom"] })
+  @ApiProperty({
+    description: "Frequency of the rebalancing schedule",
+    enum: ["daily", "weekly", "monthly", "custom"],
+  })
   @IsEnum(["daily", "weekly", "monthly", "custom"])
   frequency: "daily" | "weekly" | "monthly" | "custom";
 
@@ -95,9 +107,15 @@ export class CancelRebalancingDto {
 export class RebalancingEventResponseDto {
   @ApiProperty({ description: "Unique identifier of the rebalancing event" })
   id: string;
-  @ApiProperty({ description: "The trigger for the rebalancing event", enum: RebalanceTrigger })
+  @ApiProperty({
+    description: "The trigger for the rebalancing event",
+    enum: RebalanceTrigger,
+  })
   trigger: RebalanceTrigger;
-  @ApiProperty({ description: "Status of the rebalancing event", enum: RebalanceStatus })
+  @ApiProperty({
+    description: "Status of the rebalancing event",
+    enum: RebalanceStatus,
+  })
   status: RebalanceStatus;
   @ApiPropertyOptional({ description: "Reason for the rebalancing trigger" })
   triggerReason?: string;
@@ -111,11 +129,17 @@ export class RebalancingEventResponseDto {
   estimatedCost?: number;
   @ApiPropertyOptional({ description: "Actual cost of rebalancing" })
   actualCost?: number;
-  @ApiPropertyOptional({ description: "Maximum allocation drift before rebalancing" })
+  @ApiPropertyOptional({
+    description: "Maximum allocation drift before rebalancing",
+  })
   maxAllocationDrift?: number;
-  @ApiPropertyOptional({ description: "Expected return improvement from rebalancing" })
+  @ApiPropertyOptional({
+    description: "Expected return improvement from rebalancing",
+  })
   expectedReturnImprovement?: number;
-  @ApiPropertyOptional({ description: "Change in portfolio volatility after rebalancing" })
+  @ApiPropertyOptional({
+    description: "Change in portfolio volatility after rebalancing",
+  })
   volatilityChange?: number;
   @ApiProperty({ description: "Date of rebalancing event creation" })
   createdAt: Date;

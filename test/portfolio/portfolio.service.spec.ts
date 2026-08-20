@@ -1,15 +1,22 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { PortfolioService } from '../../src/investment/portfolio/services/portfolio.service';
-import { Portfolio } from '../../src/investment/portfolio/entities/portfolio.entity';
-import { PortfolioAsset, Chain, AssetType } from '../../src/investment/portfolio/entities/portfolio-asset.entity';
-import { OptimizationHistory } from '../../src/investment/portfolio/entities/optimization-history.entity';
-import { RiskProfile } from '../../src/investment/portfolio/entities/risk-profile.entity';
-import { CreatePortfolioDto } from '../../src/investment/portfolio/dto/portfolio.dto';
-import { OptimizationMethod } from '../../src/investment/portfolio/entities/optimization-history.entity';
-import { AddHoldingDto, UpdateHoldingDto } from '../../src/investment/portfolio/dto/portfolio-asset.dto';
+import { Test, TestingModule } from "@nestjs/testing";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { PortfolioService } from "../../src/investment/portfolio/services/portfolio.service";
+import { Portfolio } from "../../src/investment/portfolio/entities/portfolio.entity";
+import {
+  PortfolioAsset,
+  Chain,
+  AssetType,
+} from "../../src/investment/portfolio/entities/portfolio-asset.entity";
+import { OptimizationHistory } from "../../src/investment/portfolio/entities/optimization-history.entity";
+import { RiskProfile } from "../../src/investment/portfolio/entities/risk-profile.entity";
+import { CreatePortfolioDto } from "../../src/investment/portfolio/dto/portfolio.dto";
+import { OptimizationMethod } from "../../src/investment/portfolio/entities/optimization-history.entity";
+import {
+  AddHoldingDto,
+  UpdateHoldingDto,
+} from "../../src/investment/portfolio/dto/portfolio-asset.dto";
 
-describe('PortfolioService', () => {
+describe("PortfolioService", () => {
   let service: PortfolioService;
   let portfolioRepository: any;
   let assetRepository: any;
@@ -35,9 +42,9 @@ describe('PortfolioService', () => {
   };
 
   const mockAsset = {
-    id: 'asset-1',
-    ticker: 'AAPL',
-    name: 'Apple',
+    id: "asset-1",
+    ticker: "AAPL",
+    name: "Apple",
     chain: Chain.OTHER,
     quantity: 100,
     currentPrice: 150,
@@ -147,9 +154,9 @@ describe('PortfolioService', () => {
         name: "Test Portfolio",
       };
 
-      await expect(
-        service.createPortfolio("test-user-1", dto),
-      ).rejects.toThrow("Portfolio with this name already exists");
+      await expect(service.createPortfolio("test-user-1", dto)).rejects.toThrow(
+        "Portfolio with this name already exists",
+      );
     });
 
     it("should throw for empty name", async () => {
@@ -157,9 +164,9 @@ describe('PortfolioService', () => {
         name: "   ",
       };
 
-      await expect(
-        service.createPortfolio("test-user-1", dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createPortfolio("test-user-1", dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -179,18 +186,18 @@ describe('PortfolioService', () => {
     it("should throw NotFoundException if portfolio not found", async () => {
       portfolioRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.getPortfolio("non-existent"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getPortfolio("non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should throw NotFoundException if portfolio is deleted", async () => {
       const deletedPortfolio = { ...mockPortfolio, deletedAt: new Date() };
       portfolioRepository.findOne.mockResolvedValue(deletedPortfolio);
 
-      await expect(
-        service.getPortfolio("test-portfolio-1"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getPortfolio("test-portfolio-1")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -269,9 +276,9 @@ describe('PortfolioService', () => {
       const deletedPortfolio = { ...mockPortfolio, deletedAt: new Date() };
       portfolioRepository.findOne.mockResolvedValue(deletedPortfolio);
 
-      await expect(
-        service.deletePortfolio("test-portfolio-1"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.deletePortfolio("test-portfolio-1")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -385,9 +392,9 @@ describe('PortfolioService', () => {
     it("should throw if optimization not found", async () => {
       optimizationRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.approveOptimization("non-existent"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.approveOptimization("non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should throw if optimization is not completed", async () => {
@@ -397,9 +404,9 @@ describe('PortfolioService', () => {
       };
       optimizationRepository.findOne.mockResolvedValue(pendingOptimization);
 
-      await expect(
-        service.approveOptimization("opt-1"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.approveOptimization("opt-1")).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -431,17 +438,17 @@ describe('PortfolioService', () => {
     it("should throw if optimization is not approved", async () => {
       optimizationRepository.findOne.mockResolvedValue(mockOptimization);
 
-      await expect(
-        service.implementOptimization("opt-1"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.implementOptimization("opt-1")).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
-  describe('addHolding', () => {
-    it('should add a new holding to portfolio', async () => {
+  describe("addHolding", () => {
+    it("should add a new holding to portfolio", async () => {
       const dto: AddHoldingDto = {
-        ticker: 'ETH',
-        name: 'Ethereum',
+        ticker: "ETH",
+        name: "Ethereum",
         chain: Chain.ETHEREUM,
         quantity: 10,
         currentPrice: 2000,
@@ -452,10 +459,14 @@ describe('PortfolioService', () => {
       assetRepository.create.mockReturnValue({ ...mockAsset, ...dto });
       assetRepository.save.mockResolvedValue({ ...mockAsset, ...dto });
 
-      const result = await service.addHolding('test-portfolio-1', dto);
+      const result = await service.addHolding("test-portfolio-1", dto);
 
       expect(assetRepository.findOne).toHaveBeenCalledWith({
-        where: { portfolioId: 'test-portfolio-1', ticker: dto.ticker, chain: dto.chain },
+        where: {
+          portfolioId: "test-portfolio-1",
+          ticker: dto.ticker,
+          chain: dto.chain,
+        },
       });
       expect(assetRepository.create).toHaveBeenCalled();
       expect(assetRepository.save).toHaveBeenCalled();
@@ -463,10 +474,10 @@ describe('PortfolioService', () => {
       expect(result.chain).toBe(dto.chain);
     });
 
-    it('should throw error if holding already exists', async () => {
+    it("should throw error if holding already exists", async () => {
       const dto: AddHoldingDto = {
-        ticker: 'ETH',
-        name: 'Ethereum',
+        ticker: "ETH",
+        name: "Ethereum",
         chain: Chain.ETHEREUM,
         quantity: 10,
         currentPrice: 2000,
@@ -475,14 +486,14 @@ describe('PortfolioService', () => {
 
       assetRepository.findOne.mockResolvedValue(mockAsset);
 
-      await expect(
-        service.addHolding('test-portfolio-1', dto),
-      ).rejects.toThrow('Holding with same ticker and chain already exists');
+      await expect(service.addHolding("test-portfolio-1", dto)).rejects.toThrow(
+        "Holding with same ticker and chain already exists",
+      );
     });
   });
 
-  describe('updateHolding', () => {
-    it('should update holding in portfolio', async () => {
+  describe("updateHolding", () => {
+    it("should update holding in portfolio", async () => {
       const dto: UpdateHoldingDto = {
         quantity: 20,
         currentPrice: 2500,
@@ -492,43 +503,47 @@ describe('PortfolioService', () => {
       assetRepository.findOne.mockResolvedValue(mockAsset);
       assetRepository.save.mockResolvedValue(updatedAsset);
 
-      const result = await service.updateHolding('test-portfolio-1', 'asset-1', dto);
+      const result = await service.updateHolding(
+        "test-portfolio-1",
+        "asset-1",
+        dto,
+      );
 
       expect(assetRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'asset-1', portfolioId: 'test-portfolio-1' },
+        where: { id: "asset-1", portfolioId: "test-portfolio-1" },
       });
       expect(assetRepository.save).toHaveBeenCalled();
     });
 
-    it('should throw error if holding not found', async () => {
+    it("should throw error if holding not found", async () => {
       const dto: UpdateHoldingDto = { quantity: 20 };
       assetRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.updateHolding('test-portfolio-1', 'non-existent', dto),
-      ).rejects.toThrow('Holding not found');
+        service.updateHolding("test-portfolio-1", "non-existent", dto),
+      ).rejects.toThrow("Holding not found");
     });
   });
 
-  describe('removeHolding', () => {
-    it('should remove holding from portfolio', async () => {
+  describe("removeHolding", () => {
+    it("should remove holding from portfolio", async () => {
       assetRepository.findOne.mockResolvedValue(mockAsset);
       assetRepository.remove.mockResolvedValue(null);
 
-      await service.removeHolding('test-portfolio-1', 'asset-1');
+      await service.removeHolding("test-portfolio-1", "asset-1");
 
       expect(assetRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'asset-1', portfolioId: 'test-portfolio-1' },
+        where: { id: "asset-1", portfolioId: "test-portfolio-1" },
       });
       expect(assetRepository.remove).toHaveBeenCalledWith(mockAsset);
     });
 
-    it('should throw error if holding not found', async () => {
+    it("should throw error if holding not found", async () => {
       assetRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.removeHolding('test-portfolio-1', 'non-existent'),
-      ).rejects.toThrow('Holding not found');
+        service.removeHolding("test-portfolio-1", "non-existent"),
+      ).rejects.toThrow("Holding not found");
     });
   });
 });

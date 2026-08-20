@@ -76,9 +76,10 @@ export class ConnectionMonitorService implements OnModuleInit, OnModuleDestroy {
         );
       }
       return {
-        status: this.consecutiveFailures >= this.maxConsecutiveFailures
-          ? "unhealthy"
-          : "degraded",
+        status:
+          this.consecutiveFailures >= this.maxConsecutiveFailures
+            ? "unhealthy"
+            : "degraded",
         responseTime,
         activeConnections: 0,
         idleConnections: 0,
@@ -117,7 +118,9 @@ export class ConnectionMonitorService implements OnModuleInit, OnModuleDestroy {
     this.intervalId = setInterval(async () => {
       const health = await this.checkConnection();
       if (health.status === "unhealthy") {
-        this.logger.error("Database connection is unhealthy, attempting reconnect");
+        this.logger.error(
+          "Database connection is unhealthy, attempting reconnect",
+        );
         this.reconnect().then((success) => {
           if (!success) {
             this.logger.error("Automatic reconnection failed");

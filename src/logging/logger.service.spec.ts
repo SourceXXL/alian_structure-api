@@ -14,7 +14,11 @@ import { createWinstonLogger } from "./winston.config";
  */
 function createTestLoggerService(): {
   service: LoggerService;
-  records: Array<{ level: string; message: string; meta: Record<string, unknown> }>;
+  records: Array<{
+    level: string;
+    message: string;
+    meta: Record<string, unknown>;
+  }>;
 } {
   const records: Array<{
     level: string;
@@ -218,7 +222,9 @@ describe("ScopedLoggerService", () => {
     const err = new Error("scoped error");
     scoped.logError(err, { userId: "u1" });
 
-    expect(logErrorSpy).toHaveBeenCalledWith(err, "TestScope", { userId: "u1" });
+    expect(logErrorSpy).toHaveBeenCalledWith(err, "TestScope", {
+      userId: "u1",
+    });
   });
 
   it("forwards logPerformance to parent with context injected", () => {

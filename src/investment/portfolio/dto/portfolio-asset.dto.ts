@@ -28,17 +28,26 @@ export class PortfolioAssetDto {
   @IsEnum(AssetType)
   type?: AssetType;
 
-  @ApiPropertyOptional({ description: "Quantity of the asset held", example: 1.5 })
+  @ApiPropertyOptional({
+    description: "Quantity of the asset held",
+    example: 1.5,
+  })
   @IsOptional()
   @IsNumber()
   quantity?: number;
 
-  @ApiPropertyOptional({ description: "Current price of the asset", example: 60000 })
+  @ApiPropertyOptional({
+    description: "Current price of the asset",
+    example: 60000,
+  })
   @IsOptional()
   @IsNumber()
   currentPrice?: number;
 
-  @ApiPropertyOptional({ description: "Cost basis of the asset", example: 50000 })
+  @ApiPropertyOptional({
+    description: "Cost basis of the asset",
+    example: 50000,
+  })
   @IsOptional()
   @IsNumber()
   costBasis?: number;
@@ -57,19 +66,27 @@ export class AddAssetToPortfolioDto {
   @IsNumber()
   quantity: number;
 
-  @ApiPropertyOptional({ description: "Current price of the asset", example: 60000 })
+  @ApiPropertyOptional({
+    description: "Current price of the asset",
+    example: 60000,
+  })
   @IsOptional()
   @IsNumber()
   currentPrice?: number;
 
-  @ApiPropertyOptional({ description: "Cost basis of the asset", example: 50000 })
+  @ApiPropertyOptional({
+    description: "Cost basis of the asset",
+    example: 50000,
+  })
   @IsOptional()
   @IsNumber()
   costBasis?: number;
 }
 
 export class ConstraintOverrideDto {
-  @ApiPropertyOptional({ description: "Override constraints for this operation" })
+  @ApiPropertyOptional({
+    description: "Override constraints for this operation",
+  })
   @IsOptional()
   @IsBoolean()
   overrideConstraints?: boolean;
@@ -108,7 +125,10 @@ export class AddHoldingDto extends ConstraintOverrideDto {
   @IsNumber()
   quantity: number;
 
-  @ApiPropertyOptional({ description: "Current price of the asset", example: 60000 })
+  @ApiPropertyOptional({
+    description: "Current price of the asset",
+    example: 60000,
+  })
   @IsOptional()
   @IsNumber()
   currentPrice?: number;
@@ -152,9 +172,13 @@ export class PortfolioAssetResponseDto {
   currentPrice?: number;
   @ApiProperty({ description: "Total value of the asset holding" })
   value: number;
-  @ApiProperty({ description: "Allocation percentage of the asset in the portfolio" })
+  @ApiProperty({
+    description: "Allocation percentage of the asset in the portfolio",
+  })
   allocationPercentage: number;
-  @ApiPropertyOptional({ description: "Suggested allocation percentage for the asset" })
+  @ApiPropertyOptional({
+    description: "Suggested allocation percentage for the asset",
+  })
   suggestedAllocation?: number;
   @ApiPropertyOptional({ description: "Expected return of the asset" })
   expectedReturn?: number;

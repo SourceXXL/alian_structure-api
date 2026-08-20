@@ -14,7 +14,13 @@ import "winston-daily-rotate-file";
 // ---------------------------------------------------------------------------
 
 /** Log levels accepted by the logging module (maps onto Winston/RFC 5424). */
-export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "verbose";
+export type LogLevel =
+  | "fatal"
+  | "error"
+  | "warn"
+  | "info"
+  | "debug"
+  | "verbose";
 
 export interface LoggerModuleOptions {
   /** Service identifier injected into every log line. Default: "alian-structure-api" */
@@ -97,20 +103,24 @@ export function createJsonFormat(serviceName: string): winston.Logform.Format {
  * Pretty console format used in development.
  * Displays coloured, human-readable output with timestamp and context.
  */
-export function createPrettyFormat(disableColors = false): winston.Logform.Format {
+export function createPrettyFormat(
+  disableColors = false,
+): winston.Logform.Format {
   return winston.format.combine(
     winston.format.timestamp({ format: "HH:mm:ss.SSS" }),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
     winston.format.colorize({ all: !disableColors }),
-    winston.format.printf(({ timestamp, level, message, context, stack, ...meta }) => {
-      const ctx = context ? `[${context}]` : "";
-      const metaStr = Object.keys(meta).length
-        ? " " + JSON.stringify(meta, null, 0)
-        : "";
-      const stackStr = stack ? `\n${stack}` : "";
-      return `${timestamp} ${level} ${ctx} ${message}${metaStr}${stackStr}`;
-    }),
+    winston.format.printf(
+      ({ timestamp, level, message, context, stack, ...meta }) => {
+        const ctx = context ? `[${context}]` : "";
+        const metaStr = Object.keys(meta).length
+          ? " " + JSON.stringify(meta, null, 0)
+          : "";
+        const stackStr = stack ? `\n${stack}` : "";
+        return `${timestamp} ${level} ${ctx} ${message}${metaStr}${stackStr}`;
+      },
+    ),
   );
 }
 

@@ -35,36 +35,58 @@ describe("retry.service", () => {
 
     it("throws after max retries exceeded", async () => {
       await expect(
-        retry(
-          () => Promise.reject(new Error("ECONNREFUSED")),
-          { maxRetries: 2, baseDelay: 0, maxDelay: 0 },
-        ),
+        retry(() => Promise.reject(new Error("ECONNREFUSED")), {
+          maxRetries: 2,
+          baseDelay: 0,
+          maxDelay: 0,
+        }),
       ).rejects.toThrow("ECONNREFUSED");
     });
 
     it("does not retry non-transient errors", async () => {
       await expect(
-        retry(
-          () => Promise.reject(new Error("ValidationError")),
-          { maxRetries: 3, baseDelay: 0, maxDelay: 0 },
-        ),
+        retry(() => Promise.reject(new Error("ValidationError")), {
+          maxRetries: 3,
+          baseDelay: 0,
+          maxDelay: 0,
+        }),
       ).rejects.toThrow("ValidationError");
     });
   });
 
   describe("calculateDelay", () => {
     it("returns base delay for fixed strategy", () => {
-      expect(calculateDelay(RetryStrategy.FIXED_DELAY, 1, 1000, 2, 30000)).toBe(1000);
+      expect(calculateDelay(RetryStrategy.FIXED_DELAY, 1, 1000, 2, 30000)).toBe(
+        1000,
+      );
     });
 
     it("exponentially increases delay", () => {
-      const delay0 = calculateDelay(RetryStrategy.EXPONENTIAL_BACKOFF, 0, 1000, 2, 30000);
-      const delay1 = calculateDelay(RetryStrategy.EXPONENTIAL_BACKOFF, 1, 1000, 2, 30000);
+      const delay0 = calculateDelay(
+        RetryStrategy.EXPONENTIAL_BACKOFF,
+        0,
+        1000,
+        2,
+        30000,
+      );
+      const delay1 = calculateDelay(
+        RetryStrategy.EXPONENTIAL_BACKOFF,
+        1,
+        1000,
+        2,
+        30000,
+      );
       expect(delay1).toBe(delay0 * 2);
     });
 
     it("caps delay at maxDelay", () => {
-      const delay = calculateDelay(RetryStrategy.EXPONENTIAL_BACKOFF, 10, 1000, 2, 30000);
+      const delay = calculateDelay(
+        RetryStrategy.EXPONENTIAL_BACKOFF,
+        10,
+        1000,
+        2,
+        30000,
+      );
       expect(delay).toBe(30000);
     });
   });

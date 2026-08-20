@@ -1,7 +1,19 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, Controller, Post, Body, HttpCode } from "@nestjs/common";
+import {
+  INestApplication,
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+} from "@nestjs/common";
 import request from "supertest";
-import { IsString, IsInt, Min, IsOptional, ValidateNested } from "class-validator";
+import {
+  IsString,
+  IsInt,
+  Min,
+  IsOptional,
+  ValidateNested,
+} from "class-validator";
 import { Type } from "class-transformer";
 import { SanitizePipe } from "../src/common/pipes/sanitize.pipe";
 import { createGlobalValidationPipe } from "../src/common/pipes/validation.pipe";
@@ -138,7 +150,9 @@ describe("Validation & Sanitization Pipeline (e2e)", () => {
       .expect(400);
 
     expect(response.body.statusCode).toBe(400);
-    const addressErr = response.body.errors.find((e: any) => e.field === "address");
+    const addressErr = response.body.errors.find(
+      (e: any) => e.field === "address",
+    );
     expect(addressErr).toBeDefined();
     expect(addressErr.children).toBeDefined();
   });

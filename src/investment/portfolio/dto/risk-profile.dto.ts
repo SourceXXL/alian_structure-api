@@ -9,21 +9,32 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { RiskTolerance, InvestmentGoal } from "../entities/risk-profile.entity";
 
 export class CreateRiskProfileDto {
-  @ApiProperty({ description: "Name of the risk profile", example: "Aggressive Growth" })
+  @ApiProperty({
+    description: "Name of the risk profile",
+    example: "Aggressive Growth",
+  })
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ description: "Optional description of the risk profile" })
+  @ApiPropertyOptional({
+    description: "Optional description of the risk profile",
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ description: "Tolerance for risk", enum: RiskTolerance })
+  @ApiPropertyOptional({
+    description: "Tolerance for risk",
+    enum: RiskTolerance,
+  })
   @IsOptional()
   @IsEnum(RiskTolerance)
   riskTolerance?: RiskTolerance;
 
-  @ApiPropertyOptional({ description: "Primary investment goal", enum: InvestmentGoal })
+  @ApiPropertyOptional({
+    description: "Primary investment goal",
+    enum: InvestmentGoal,
+  })
   @IsOptional()
   @IsEnum(InvestmentGoal)
   investmentGoal?: InvestmentGoal;
@@ -33,27 +44,42 @@ export class CreateRiskProfileDto {
   @IsNumber()
   targetReturn?: number;
 
-  @ApiPropertyOptional({ description: "Maximum acceptable volatility", example: 0.2 })
+  @ApiPropertyOptional({
+    description: "Maximum acceptable volatility",
+    example: 0.2,
+  })
   @IsOptional()
   @IsNumber()
   maxVolatility?: number;
 
-  @ApiPropertyOptional({ description: "Maximum acceptable drawdown", example: 0.15 })
+  @ApiPropertyOptional({
+    description: "Maximum acceptable drawdown",
+    example: 0.15,
+  })
   @IsOptional()
   @IsNumber()
   maxDrawdown?: number;
 
-  @ApiPropertyOptional({ description: "Investment horizon in years", example: 10 })
+  @ApiPropertyOptional({
+    description: "Investment horizon in years",
+    example: 10,
+  })
   @IsOptional()
   @IsNumber()
   investmentHorizonYears?: number;
 
-  @ApiPropertyOptional({ description: "Minimum equity allocation", example: 0.6 })
+  @ApiPropertyOptional({
+    description: "Minimum equity allocation",
+    example: 0.6,
+  })
   @IsOptional()
   @IsNumber()
   equityAllocationMin?: number;
 
-  @ApiPropertyOptional({ description: "Maximum equity allocation", example: 0.9 })
+  @ApiPropertyOptional({
+    description: "Maximum equity allocation",
+    example: 0.9,
+  })
   @IsOptional()
   @IsNumber()
   equityAllocationMax?: number;
@@ -68,17 +94,26 @@ export class CreateRiskProfileDto {
   @IsNumber()
   bondAllocationMax?: number;
 
-  @ApiPropertyOptional({ description: "List of excluded assets", example: ["BND"] })
+  @ApiPropertyOptional({
+    description: "List of excluded assets",
+    example: ["BND"],
+  })
   @IsOptional()
   @IsArray()
   excludedAssets?: string[];
 
-  @ApiPropertyOptional({ description: "List of required assets", example: ["VOO"] })
+  @ApiPropertyOptional({
+    description: "List of required assets",
+    example: ["VOO"],
+  })
   @IsOptional()
   @IsArray()
   requiredAssets?: string[];
 
-  @ApiPropertyOptional({ description: "Minimum ESG score for assets", example: 70 })
+  @ApiPropertyOptional({
+    description: "Minimum ESG score for assets",
+    example: 70,
+  })
   @IsOptional()
   @IsNumber()
   minESGScore?: number;
@@ -90,17 +125,25 @@ export class UpdateRiskProfileDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ description: "Optional description of the risk profile" })
+  @ApiPropertyOptional({
+    description: "Optional description of the risk profile",
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ description: "Tolerance for risk", enum: RiskTolerance })
+  @ApiPropertyOptional({
+    description: "Tolerance for risk",
+    enum: RiskTolerance,
+  })
   @IsOptional()
   @IsEnum(RiskTolerance)
   riskTolerance?: RiskTolerance;
 
-  @ApiPropertyOptional({ description: "Primary investment goal", enum: InvestmentGoal })
+  @ApiPropertyOptional({
+    description: "Primary investment goal",
+    enum: InvestmentGoal,
+  })
   @IsOptional()
   @IsEnum(InvestmentGoal)
   investmentGoal?: InvestmentGoal;
@@ -146,7 +189,9 @@ export class RiskProfileResponseDto {
   id: string;
   @ApiProperty({ description: "Name of the risk profile" })
   name: string;
-  @ApiPropertyOptional({ description: "Optional description of the risk profile" })
+  @ApiPropertyOptional({
+    description: "Optional description of the risk profile",
+  })
   description?: string;
   @ApiProperty({ description: "Tolerance for risk", enum: RiskTolerance })
   riskTolerance: RiskTolerance;
@@ -170,7 +215,9 @@ export class RiskProfileResponseDto {
   bondAllocationMax: number;
   @ApiProperty({ description: "Investment horizon in years" })
   investmentHorizonYears: number;
-  @ApiProperty({ description: "Whether to use machine learning for optimization" })
+  @ApiProperty({
+    description: "Whether to use machine learning for optimization",
+  })
   useMachineLearning: boolean;
   @ApiProperty({ description: "Date of risk profile creation" })
   createdAt: Date;

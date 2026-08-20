@@ -20,7 +20,11 @@ export class RiskConfigDto {
   @IsString()
   userId: string;
 
-  @ApiProperty({ description: "Risk tolerance of the user", minimum: 0, maximum: 1 })
+  @ApiProperty({
+    description: "Risk tolerance of the user",
+    minimum: 0,
+    maximum: 1,
+  })
   @IsNumber()
   @Min(0)
   @Max(1)
@@ -56,7 +60,9 @@ export class PortfolioRiskDto {
   var95: number;
   @ApiProperty({ description: "Value at Risk (VaR) at 99% confidence" })
   var99: number;
-  @ApiProperty({ description: "Conditional Value at Risk (CVaR) at 95% confidence" })
+  @ApiProperty({
+    description: "Conditional Value at Risk (CVaR) at 95% confidence",
+  })
   cvar95: number;
   @ApiProperty({ description: "Sharpe ratio of the portfolio" })
   sharpeRatio: number;

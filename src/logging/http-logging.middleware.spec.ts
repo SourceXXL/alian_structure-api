@@ -92,7 +92,10 @@ describe("HttpLoggingMiddleware", () => {
       });
       const res = makeRes();
       middleware.use(req as any, res as any, jest.fn());
-      expect(res.setHeader).toHaveBeenCalledWith("x-request-id", "my-custom-id");
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "x-request-id",
+        "my-custom-id",
+      );
     });
   });
 
@@ -155,7 +158,7 @@ describe("HttpLoggingMiddleware", () => {
       // Mock process.hrtime to simulate a 1.5 second elapsed time
       const bigIntSpy = jest
         .spyOn(process.hrtime, "bigint")
-        .mockReturnValueOnce(0n)          // start
+        .mockReturnValueOnce(0n) // start
         .mockReturnValueOnce(1_500_000_000n); // finish (1500ms)
 
       middleware.use(req as any, res as any, jest.fn());
@@ -221,7 +224,9 @@ describe("HttpLoggingMiddleware", () => {
       expect(calledWithHealth).toBe(false);
 
       expect(logger.debug).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringContaining("/health") }),
+        expect.objectContaining({
+          message: expect.stringContaining("/health"),
+        }),
       );
     });
 

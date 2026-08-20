@@ -13,7 +13,10 @@ import {
 } from "../entities/optimization-history.entity";
 
 export class CreateOptimizationDto {
-  @ApiProperty({ description: "The optimization method to use", enum: OptimizationMethod })
+  @ApiProperty({
+    description: "The optimization method to use",
+    enum: OptimizationMethod,
+  })
   @IsEnum(OptimizationMethod)
   method: OptimizationMethod;
 
@@ -21,12 +24,16 @@ export class CreateOptimizationDto {
   @IsString()
   portfolioId: string;
 
-  @ApiPropertyOptional({ description: "Parameters for the optimization method" })
+  @ApiPropertyOptional({
+    description: "Parameters for the optimization method",
+  })
   @IsOptional()
   @IsJSON()
   parameters?: Record<string, any>;
 
-  @ApiPropertyOptional({ description: "ID of the risk profile to use for optimization" })
+  @ApiPropertyOptional({
+    description: "ID of the risk profile to use for optimization",
+  })
   @IsOptional()
   @IsString()
   riskProfileId?: string;
@@ -36,7 +43,9 @@ export class CreateOptimizationDto {
   @IsNumber()
   targetReturn?: number;
 
-  @ApiPropertyOptional({ description: "Maximum volatility for the optimization" })
+  @ApiPropertyOptional({
+    description: "Maximum volatility for the optimization",
+  })
   @IsOptional()
   @IsNumber()
   maxVolatility?: number;
@@ -80,27 +89,49 @@ export class ImplementOptimizationDto {
 }
 
 export class OptimizationHistoryResponseDto {
-  @ApiProperty({ description: "Unique identifier of the optimization history record" })
+  @ApiProperty({
+    description: "Unique identifier of the optimization history record",
+  })
   id: string;
-  @ApiProperty({ description: "The optimization method used", enum: OptimizationMethod })
+  @ApiProperty({
+    description: "The optimization method used",
+    enum: OptimizationMethod,
+  })
   method: OptimizationMethod;
-  @ApiProperty({ description: "Status of the optimization", enum: OptimizationStatus })
+  @ApiProperty({
+    description: "Status of the optimization",
+    enum: OptimizationStatus,
+  })
   status: OptimizationStatus;
-  @ApiProperty({ description: "Suggested asset allocation from the optimization" })
+  @ApiProperty({
+    description: "Suggested asset allocation from the optimization",
+  })
   suggestedAllocation: Record<string, number>;
-  @ApiPropertyOptional({ description: "Expected return of the optimized portfolio" })
+  @ApiPropertyOptional({
+    description: "Expected return of the optimized portfolio",
+  })
   expectedReturn?: number;
-  @ApiPropertyOptional({ description: "Expected volatility of the optimized portfolio" })
+  @ApiPropertyOptional({
+    description: "Expected volatility of the optimized portfolio",
+  })
   expectedVolatility?: number;
-  @ApiPropertyOptional({ description: "Expected Sharpe ratio of the optimized portfolio" })
+  @ApiPropertyOptional({
+    description: "Expected Sharpe ratio of the optimized portfolio",
+  })
   expectedSharpeRatio?: number;
-  @ApiPropertyOptional({ description: "Value at Risk (VaR) of the optimized portfolio" })
+  @ApiPropertyOptional({
+    description: "Value at Risk (VaR) of the optimized portfolio",
+  })
   valueAtRisk?: number;
-  @ApiPropertyOptional({ description: "Maximum drawdown of the optimized portfolio" })
+  @ApiPropertyOptional({
+    description: "Maximum drawdown of the optimized portfolio",
+  })
   maxDrawdown?: number;
   @ApiPropertyOptional({ description: "Improvement score of the optimization" })
   improvementScore?: number;
-  @ApiPropertyOptional({ description: "Backtested metrics of the optimized portfolio" })
+  @ApiPropertyOptional({
+    description: "Backtested metrics of the optimized portfolio",
+  })
   backtestedMetrics?: Record<string, number>;
   @ApiProperty({ description: "Date of optimization creation" })
   createdAt: Date;

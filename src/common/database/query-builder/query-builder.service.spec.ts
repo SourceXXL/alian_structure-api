@@ -78,7 +78,14 @@ describe("QueryBuilderService", () => {
       }).compile();
       const svc = module.get<QueryBuilderService<any>>(QueryBuilderService);
       await svc.findAll(Object, {
-        join: [{ entity: Object, alias: "a", condition: "a.id = entity.id", type: "INNER" }],
+        join: [
+          {
+            entity: Object,
+            alias: "a",
+            condition: "a.id = entity.id",
+            type: "INNER",
+          },
+        ],
       });
       expect(qb.innerJoin).toHaveBeenCalled();
     });
@@ -120,7 +127,11 @@ describe("QueryBuilderService", () => {
         createQueryBuilder: jest.fn().mockReturnValue(qb),
         query: qb.query,
       });
-      const result = await service.rawQuery(Object, 'SELECT * FROM entity WHERE id = :1', ["1"]);
+      const result = await service.rawQuery(
+        Object,
+        "SELECT * FROM entity WHERE id = :1",
+        ["1"],
+      );
       expect(result).toHaveLength(1);
     });
   });
@@ -136,7 +147,9 @@ describe("QueryBuilderService", () => {
           rollbackTransaction: jest.fn().mockResolvedValue(undefined),
           release: jest.fn().mockResolvedValue(undefined),
         }),
-        getRepository: jest.fn().mockReturnValue({ createQueryBuilder: jest.fn().mockReturnValue(qb) }),
+        getRepository: jest.fn().mockReturnValue({
+          createQueryBuilder: jest.fn().mockReturnValue(qb),
+        }),
       } as unknown as DataSource;
 
       const module = await Test.createTestingModule({

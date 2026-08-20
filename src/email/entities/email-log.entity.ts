@@ -1,7 +1,24 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from "typeorm";
 
-export enum EmailProvider { SMTP = "smtp", SENDGRID = "sendgrid", SES = "ses" }
-export enum EmailStatus { QUEUED = "queued", SENDING = "sending", SENT = "sent", DELIVERED = "delivered", FAILED = "failed", BOUNCED = "bounced" }
+export enum EmailProvider {
+  SMTP = "smtp",
+  SENDGRID = "sendgrid",
+  SES = "ses",
+}
+export enum EmailStatus {
+  QUEUED = "queued",
+  SENDING = "sending",
+  SENT = "sent",
+  DELIVERED = "delivered",
+  FAILED = "failed",
+  BOUNCED = "bounced",
+}
 
 @Entity("email_logs")
 export class EmailLog {
@@ -11,8 +28,10 @@ export class EmailLog {
   @Column() subject: string;
   @Column({ nullable: true }) templateName?: string;
   @Column({ type: "jsonb", nullable: true }) templateVars?: Record<string, any>;
-  @Column({ type: "enum", enum: EmailProvider, default: EmailProvider.SMTP }) provider: EmailProvider;
-  @Column({ type: "enum", enum: EmailStatus, default: EmailStatus.QUEUED }) status: EmailStatus;
+  @Column({ type: "enum", enum: EmailProvider, default: EmailProvider.SMTP })
+  provider: EmailProvider;
+  @Column({ type: "enum", enum: EmailStatus, default: EmailStatus.QUEUED })
+  status: EmailStatus;
   @Column({ nullable: true }) providerMessageId?: string;
   @Column({ type: "int", default: 0 }) attempts: number;
   @Column({ type: "int", default: 5 }) maxAttempts: number;

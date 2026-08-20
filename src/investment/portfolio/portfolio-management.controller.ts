@@ -58,7 +58,10 @@ export class PortfolioManagementController {
     @Request() req: any,
     @Body() createPortfolioDto: CreatePortfolioDto,
   ): Promise<PortfolioResponseDto> {
-    return this.portfolioService.createPortfolio(req.user.id, createPortfolioDto);
+    return this.portfolioService.createPortfolio(
+      req.user.id,
+      createPortfolioDto,
+    );
   }
 
   @Get(":id")

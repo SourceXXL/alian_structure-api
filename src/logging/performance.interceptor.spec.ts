@@ -7,7 +7,10 @@ import { LoggerService } from "./logger.service";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeContext(className = "TestController", methodName = "index"): ExecutionContext {
+function makeContext(
+  className = "TestController",
+  methodName = "index",
+): ExecutionContext {
   return {
     getClass: () => ({ name: className }),
     getHandler: () => ({ name: methodName }),
@@ -43,7 +46,9 @@ describe("PerformanceInterceptor", () => {
   describe("normal execution", () => {
     it("passes the response value through unchanged", (done) => {
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { thresholdMs: 10000 });
+      const interceptor = new PerformanceInterceptor(logger, {
+        thresholdMs: 10000,
+      });
       const ctx = makeContext();
       const handler = makeCallHandler({ data: "hello" });
 
@@ -57,7 +62,10 @@ describe("PerformanceInterceptor", () => {
 
     it("does NOT log when operation is fast and logAll=false", (done) => {
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { thresholdMs: 10000, logAll: false });
+      const interceptor = new PerformanceInterceptor(logger, {
+        thresholdMs: 10000,
+        logAll: false,
+      });
       const ctx = makeContext();
 
       interceptor.intercept(ctx, makeCallHandler()).subscribe({
@@ -70,7 +78,10 @@ describe("PerformanceInterceptor", () => {
 
     it("logs all operations when logAll=true", (done) => {
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { thresholdMs: 10000, logAll: true });
+      const interceptor = new PerformanceInterceptor(logger, {
+        thresholdMs: 10000,
+        logAll: true,
+      });
       const ctx = makeContext();
 
       interceptor.intercept(ctx, makeCallHandler()).subscribe({
@@ -95,7 +106,10 @@ describe("PerformanceInterceptor", () => {
         .mockReturnValueOnce(1_500_000_000n); // 1500ms
 
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { thresholdMs: 1000, logAll: false });
+      const interceptor = new PerformanceInterceptor(logger, {
+        thresholdMs: 1000,
+        logAll: false,
+      });
       const ctx = makeContext("PortfolioController", "getOptimization");
 
       interceptor.intercept(ctx, makeCallHandler()).subscribe({
@@ -117,7 +131,9 @@ describe("PerformanceInterceptor", () => {
   describe("error handling", () => {
     it("logs error details with timing when the handler throws", (done) => {
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { thresholdMs: 1000 });
+      const interceptor = new PerformanceInterceptor(logger, {
+        thresholdMs: 1000,
+      });
       const ctx = makeContext("AuthController", "login");
       const err = new Error("DB timeout");
       const handler = makeErrorHandler(err);
@@ -141,7 +157,9 @@ describe("PerformanceInterceptor", () => {
   describe("disabled mode", () => {
     it("bypasses all logic when enabled=false", (done) => {
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { enabled: false });
+      const interceptor = new PerformanceInterceptor(logger, {
+        enabled: false,
+      });
       const ctx = makeContext();
 
       interceptor.intercept(ctx, makeCallHandler()).subscribe({
@@ -161,7 +179,9 @@ describe("PerformanceInterceptor", () => {
         .mockReturnValueOnce(2_000_000_000n); // 2000ms
 
       const logger = makeLogger();
-      const interceptor = new PerformanceInterceptor(logger, { thresholdMs: 1000 });
+      const interceptor = new PerformanceInterceptor(logger, {
+        thresholdMs: 1000,
+      });
       const ctx = makeContext();
 
       interceptor.intercept(ctx, makeCallHandler()).subscribe({
