@@ -383,4 +383,58 @@ export class EnvironmentVariables {
   @IsBoolean()
   @Transform(({ value }) => value === "true")
   REFERRAL_ENABLE_VPN_DETECTION?: boolean = false;
+
+  // ── Webhook & Reliable Event Delivery ─────────────────────────────
+
+  /** Default max retries for webhook deliveries. Default 5. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 5)
+  WEBHOOK_DEFAULT_MAX_RETRIES?: number = 5;
+
+  /** Default base retry delay in ms. Default 1000. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 1000)
+  WEBHOOK_DEFAULT_RETRY_DELAY_MS?: number = 1000;
+
+  /** Default backoff multiplier. Default 2. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseFloat(value) || 2)
+  WEBHOOK_BACKOFF_MULTIPLIER?: number = 2;
+
+  /** Default HTTP request timeout in ms. Default 30000. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 30000)
+  WEBHOOK_TIMEOUT_MS?: number = 30000;
+
+  /** Default max deliveries per minute per subscription. Default 10. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 10)
+  WEBHOOK_RATE_LIMIT_PER_MINUTE?: number = 10;
+
+  /** Max concurrent delivery workers. Default 5. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 5)
+  WEBHOOK_CONCURRENCY?: number = 5;
+
+  /** Redis host for webhook Bull queue (falls back to REDIS_HOST). */
+  @IsOptional()
+  @IsString()
+  REDIS_HOST?: string;
+
+  /** Redis port for webhook Bull queue (falls back to 6379). */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 6379)
+  REDIS_PORT?: number;
+
+  /** Redis password for webhook Bull queue. */
+  @IsOptional()
+  @IsString()
+  REDIS_PASSWORD?: string;
 }

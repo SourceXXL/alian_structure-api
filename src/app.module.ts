@@ -96,6 +96,14 @@ import { AlertPreference } from "./growth/alerts/entities/alert-preference.entit
 import { AgentReview } from "./discovery/reviews/entities/agent-review.entity";
 import { AgentReviewsModule } from "./discovery/reviews/agent-reviews.module";
 
+// Webhook entities
+import { WebhookSubscription } from "./infrastructure/webhooks/entities/webhook-subscription.entity";
+import { WebhookEvent } from "./infrastructure/webhooks/entities/webhook-event.entity";
+import { WebhookDelivery } from "./infrastructure/webhooks/entities/webhook-delivery.entity";
+import { WebhookDeadLetter } from "./infrastructure/webhooks/entities/webhook-dead-letter.entity";
+// Modules – webhooks
+import { WebhookModule } from "./infrastructure/webhooks/webhook.module";
+
 // Guards
 import { APP_FILTER } from "@nestjs/core";
 import { QuotaGuard } from "./common/guard/quota.guard";
@@ -181,6 +189,10 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
             AlertPreference,
             EmailLog,
             AgentReview,
+            WebhookSubscription,
+            WebhookEvent,
+            WebhookDelivery,
+            WebhookDeadLetter,
           ],
           synchronize: true,
           logging: true,
@@ -213,6 +225,7 @@ import { ProfilingMiddleware } from "./profiling/profiling.middleware";
     EmailModule,
     AgentReviewsModule,
     SearchModule,
+    WebhookModule,
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (cfg: ConfigService) => ({
