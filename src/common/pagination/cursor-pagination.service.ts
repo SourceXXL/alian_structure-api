@@ -1,50 +1,128 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { Repository, SelectQueryBuilder } from "typeorm";
-import {
-  CursorPaginationDto,
-  PaginationResult,
-  CursorOptions,
-} from "./cursor-pagination.dto";
+import { CursorOptions, PaginationResult } from "./cursor-pagination.dto";
 
+const CURSOR_VERSION = 1;
+const MAX_CURSOR_LENGTH = 512;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface EncodedCursor {
+  v: typeof CURSOR_VERSION;
+  createdAt: string;
+  id: string;
+}
+
+export interface CursorPosition {
+  createdAt: Date;
+  id: string;
+}
+
+/**
+ * Encodes and applies opaque, versioned keyset cursors ordered by
+ * `(createdAt, id)`. The ID is the deterministic tiebreaker when timestamps
+ * are equal, preventing records from being duplicated or skipped.
+ */
 @Injectable()
 export class CursorPaginationService {
-  /**
-   * Creates a cursor-based pagination query
-   */
+  encode(position: CursorPosition): string {
+    this.assertPosition(position);
+    const payload: EncodedCursor = {
+      v: CURSOR_VERSION,
+      createdAt: position.createdAt.toISOString(),
+      id: position.id,
+    };
+
+    return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  }
+
+  decode(cursor: string): CursorPosition {
+    try {
+      if (
+        !cursor ||
+        cursor.length > MAX_CURSOR_LENGTH ||
+        !/^[A-Za-z0-9_-]+$/.test(cursor)
+      ) {
+        throw new Error("Malformed cursor encoding");
+      }
+
+      const decoded = Buffer.from(cursor, "base64url").toString("utf8");
+      if (Buffer.from(decoded, "utf8").toString("base64url") !== cursor) {
+        throw new Error("Non-canonical cursor encoding");
+      }
+
+      const payload = JSON.parse(decoded) as Partial<EncodedCursor>;
+      if (
+        payload.v !== CURSOR_VERSION ||
+        typeof payload.createdAt !== "string" ||
+        typeof payload.id !== "string"
+      ) {
+        throw new Error("Unsupported cursor payload");
+      }
+
+      const position = {
+        createdAt: new Date(payload.createdAt),
+        id: payload.id,
+      };
+      this.assertPosition(position);
+      if (position.createdAt.toISOString() !== payload.createdAt) {
+        throw new Error("Non-canonical cursor timestamp");
+      }
+      return position;
+    } catch {
+      throw new BadRequestException("Invalid pagination cursor");
+    }
+  }
+
+  applyDescendingKeyset<T>(
+    queryBuilder: SelectQueryBuilder<T>,
+    alias: string,
+    cursor?: string,
+  ): SelectQueryBuilder<T> {
+    queryBuilder
+      .orderBy(`${alias}.createdAt`, "DESC")
+      .addOrderBy(`${alias}.id`, "DESC");
+
+    if (cursor) {
+      const position = this.decode(cursor);
+      queryBuilder.andWhere(
+        `(${alias}.createdAt < :cursorCreatedAt OR ` +
+          `(${alias}.createdAt = :cursorCreatedAt AND ${alias}.id < :cursorId))`,
+        {
+          cursorCreatedAt: position.createdAt,
+          cursorId: position.id,
+        },
+      );
+    }
+
+    return queryBuilder;
+  }
+
+  /** @deprecated Prefer a domain-specific composite keyset helper. */
   createCursorQuery<T>(
     queryBuilder: SelectQueryBuilder<T>,
     options: CursorOptions,
   ): SelectQueryBuilder<T> {
     const { cursor, limit, direction, orderBy, orderDirection } = options;
-
-    // Add ordering
     queryBuilder.orderBy(`${queryBuilder.alias}.${orderBy}`, orderDirection);
 
-    // Add cursor condition if provided
     if (cursor) {
-      const operator = this.getCursorOperator(direction, orderDirection);
       queryBuilder.andWhere(
-        `${queryBuilder.alias}.${orderBy} ${operator} :cursor`,
-        {
-          cursor: this.decodeCursor(cursor),
-        },
+        `${queryBuilder.alias}.${orderBy} ${this.getCursorOperator(
+          direction,
+          orderDirection,
+        )} :cursor`,
+        { cursor: this.decodeLegacyCursor(cursor) },
       );
     }
 
-    // Add secondary ordering for consistent results
     if (orderBy !== "id") {
       queryBuilder.addOrderBy(`${queryBuilder.alias}.id`, orderDirection);
     }
-
-    // Apply limit with buffer for determining if there are more results
-    queryBuilder.limit(limit + 1);
-
-    return queryBuilder;
+    return queryBuilder.limit(limit + 1);
   }
 
-  /**
-   * Executes cursor-based pagination and formats results
-   */
+  /** @deprecated Retained for compatibility with the existing REST utility. */
   async paginateWithCursor<T>(
     repository: Repository<T>,
     options: CursorOptions,
@@ -52,104 +130,78 @@ export class CursorPaginationService {
   ): Promise<PaginationResult<T>> {
     const alias = repository.metadata.tableName;
     let queryBuilder = repository.createQueryBuilder(alias);
-
-    // Apply additional conditions if provided
-    if (additionalConditions) {
-      queryBuilder = additionalConditions(queryBuilder);
-    }
-
-    // Apply cursor pagination
+    if (additionalConditions) queryBuilder = additionalConditions(queryBuilder);
     queryBuilder = this.createCursorQuery(queryBuilder, options);
 
-    // Execute query
     const results = await queryBuilder.getMany();
-
-    // Determine if there are more results
     const hasMore = results.length > options.limit;
-    const hasPrevious = !!options.cursor;
-
-    // Remove the extra item used to determine if there are more results
-    if (hasMore) {
-      results.pop();
-    }
-
-    // Reverse results if going backward
-    if (options.direction === "backward") {
-      results.reverse();
-    }
-
-    // Generate cursors
-    const nextCursor = hasMore
-      ? this.encodeCursor(results[results.length - 1])
-      : undefined;
-    const prevCursor = hasPrevious ? this.encodeCursor(results[0]) : undefined;
+    const hasPrevious = Boolean(options.cursor);
+    if (hasMore) results.pop();
+    if (options.direction === "backward") results.reverse();
 
     return {
       data: results,
-      nextCursor,
-      prevCursor,
+      nextCursor: hasMore
+        ? this.encodeLegacyCursor(results[results.length - 1])
+        : undefined,
+      prevCursor: hasPrevious ? this.encodeLegacyCursor(results[0]) : undefined,
       hasMore,
       hasPrevious,
     };
   }
 
-  /**
-   * Encodes a value to a cursor
-   */
-  private encodeCursor(item: any): string {
-    if (!item) return "";
-    return Buffer.from(
-      JSON.stringify({
-        id: item.id,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      }),
-    ).toString("base64");
-  }
-
-  /**
-   * Decodes a cursor to a value
-   */
-  private decodeCursor(cursor: string): any {
-    try {
-      const decoded = JSON.parse(Buffer.from(cursor, "base64").toString());
-      return decoded.createdAt || decoded.id;
-    } catch (error) {
-      throw new Error("Invalid cursor format");
-    }
-  }
-
-  /**
-   * Gets the appropriate SQL operator based on direction and order
-   */
-  private getCursorOperator(
-    direction: "forward" | "backward",
-    orderDirection: "ASC" | "DESC",
-  ): string {
-    if (direction === "forward") {
-      return orderDirection === "ASC" ? ">" : "<";
-    } else {
-      return orderDirection === "ASC" ? "<" : ">";
-    }
-  }
-
-  /**
-   * Creates a cursor from a specific value
-   */
-  createCursorFromValue(value: any): string {
+  /** @deprecated Retained for callers of the original generic API. */
+  createCursorFromValue(value: unknown): string {
     return Buffer.from(JSON.stringify(value)).toString("base64");
   }
 
-  /**
-   * Validates cursor format
-   */
+  /** @deprecated Retained for callers of the original generic API. */
   validateCursor(cursor: string): boolean {
     try {
-      const decoded = Buffer.from(cursor, "base64").toString();
-      JSON.parse(decoded);
+      if (!cursor) return false;
+      JSON.parse(Buffer.from(cursor, "base64").toString());
       return true;
     } catch {
       return false;
     }
+  }
+
+  private assertPosition(position: CursorPosition): void {
+    if (
+      !(position.createdAt instanceof Date) ||
+      Number.isNaN(position.createdAt.getTime()) ||
+      !UUID_PATTERN.test(position.id)
+    ) {
+      throw new BadRequestException("Invalid pagination cursor");
+    }
+  }
+
+  private encodeLegacyCursor(item: unknown): string {
+    if (!item) return "";
+    const record = item as Record<string, unknown>;
+    return Buffer.from(
+      JSON.stringify({
+        id: record.id,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      }),
+    ).toString("base64");
+  }
+
+  private decodeLegacyCursor(cursor: string): unknown {
+    try {
+      const decoded = JSON.parse(Buffer.from(cursor, "base64").toString());
+      return decoded.createdAt || decoded.id;
+    } catch {
+      throw new Error("Invalid cursor format");
+    }
+  }
+
+  private getCursorOperator(
+    direction: "forward" | "backward",
+    orderDirection: "ASC" | "DESC",
+  ): string {
+    if (direction === "forward") return orderDirection === "ASC" ? ">" : "<";
+    return orderDirection === "ASC" ? "<" : ">";
   }
 }

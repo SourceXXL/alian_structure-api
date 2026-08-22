@@ -10,24 +10,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-      
+          node-version: "22"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
+      - name: Generate GraphQL TypeScript types
+        run: |
+          npm run graphql:codegen
+          git diff --exit-code -- src/graphql/client/generated.ts
+
       - name: Run TypeScript check
         run: npx tsc --noEmit
-      
+
+      - name: Test GraphQL gateway and cursor pagination
+        run: >-
+          npm test -- --runInBand
+          src/graphql
+          src/discovery/reviews/agent-reviews.service.spec.ts
+          src/common/pagination/cursor-pagination.service.spec.ts
+
       - name: Build project
         run: npm run build
 
   openapi:
-    name: Generate OpenAPI Spec & TypeScript Client
+    name: Generate OpenAPI Spec & SDKs (TypeScript + Python)
     runs-on: ubuntu-latest
     # Only run on pushes to main/master (not PRs) to avoid redundant artifact uploads.
     if: github.event_name == 'push'
@@ -45,8 +57,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -58,22 +70,90 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Generate TypeScript fetch client
         run: |
           npx @openapitools/openapi-generator-cli@2.13.4 generate \
             -i docs/openapi.json \
             -g typescript-fetch \
-            -o client \
+            -o sdks/typescript \
             --additional-properties=supportsES6=true,typescriptThreePlus=true
+
+      - name: Generate Python client
+        run: |
+          npx @openapitools/openapi-generator-cli@2.13.4 generate \
+            -i docs/openapi.json \
+            -g python \
+            -o sdks/python \
+            --additional-properties=packageName=alian_structure_api,packageVersion=${{ github.ref_name }},projectName=alian-structure-api
+
+      - name: Create SDK package metadata (TypeScript)
+        run: |
+          cat > sdks/typescript/package.json << 'EOF'
+          {
+            "name": "@alian-structure/api-client",
+            "version": "0.1.0",
+            "description": "TypeScript client for alian-structure Backend API",
+            "main": "dist/index.js",
+            "types": "dist/index.d.ts",
+            "module": "dist/esm/index.js",
+            "scripts": {
+              "build": "tsc",
+              "test": "jest",
+              "lint": "eslint src --ext .ts"
+            },
+            "keywords": ["alian", "structure", "api", "client", "typescript"],
+            "author": "alian-structure Team",
+            "license": "Apache-2.0",
+            "peerDependencies": {
+              "typescript": ">=4.0.0"
+            },
+            "devDependencies": {
+              "typescript": "^5.0.0"
+            }
+          }
+          EOF
+
+      - name: Create SDK package metadata (Python)
+        run: |
+          cat > sdks/python/setup.py << 'EOF'
+          from setuptools import setup, find_packages
+
+          setup(
+              name="alian-structure-api",
+              version="0.1.0",
+              description="Python client for alian-structure Backend API",
+              author="alian-structure Team",
+              license="Apache-2.0",
+              url="https://github.com/alian-structure/structure-api",
+              packages=find_packages(),
+              python_requires=">=3.8",
+              install_requires=[
+                  "urllib3 >= 1.26.0",
+                  "python-dateutil >= 2.8.0",
+                  "certifi >= 2021.10.8",
+                  "six >= 1.13.0",
+                  "typing-extensions >= 4.0.0",
+              ],
+              classifiers=[
+                  "Programming Language :: Python :: 3",
+                  "Programming Language :: Python :: 3.8",
+                  "Programming Language :: Python :: 3.9",
+                  "Programming Language :: Python :: 3.10",
+                  "Programming Language :: Python :: 3.11",
+                  "License :: OSI Approved :: Apache Software License",
+                  "Operating System :: OS Independent",
+              ],
+          )
+          EOF
 
       - name: Upload OpenAPI JSON artifact
         uses: actions/upload-artifact@v4
         with:
           name: openapi-spec
           path: docs/openapi.json
-          retention-days: 30
+          retention-days: 90
 
       - name: Upload TypeScript client artifact
         uses: actions/upload-artifact@v4

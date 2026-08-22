@@ -157,6 +157,8 @@ docs/openapi.json
 
 # Generated TypeScript client — produced by `npm run openapi:client`
 client/
+!src/graphql/client/
+!src/graphql/client/**
 
 # OpenAPI Generator CLI cache
 .openapi-generator/

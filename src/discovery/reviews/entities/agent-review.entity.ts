@@ -16,6 +16,7 @@ export enum ReviewStatus {
 
 @Entity("agent_reviews")
 @Index(["agentId", "userId"], { unique: true })
+@Index(["agentId", "status", "createdAt", "id"])
 export class AgentReview {
   @PrimaryGeneratedColumn("uuid")
   id: string;

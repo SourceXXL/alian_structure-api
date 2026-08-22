@@ -14,6 +14,25 @@ import {
   ModerateReviewDto,
   ReviewQueryDto,
 } from "./dto/review.dto";
+import { CursorPaginationService } from "src/common/pagination/cursor-pagination.service";
+
+export const DEFAULT_REVIEW_PAGE_SIZE = 20;
+export const MAX_REVIEW_PAGE_SIZE = 50;
+
+export interface AgentReviewEdge {
+  cursor: string;
+  node: AgentReview;
+}
+
+export interface AgentReviewConnection {
+  edges: AgentReviewEdge[];
+  pageInfo: {
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    startCursor: string | null;
+    endCursor: string | null;
+  };
+}
 
 /** Naive keyword-based spam detection — no external dependency. Returns score 0..1. */
 function computeSpamScore(text: string): number {
@@ -43,6 +62,7 @@ export class AgentReviewsService {
   constructor(
     @InjectRepository(AgentReview)
     private readonly reviewRepo: Repository<AgentReview>,
+    private readonly cursorPagination: CursorPaginationService,
   ) {}
 
   /**
@@ -89,6 +109,51 @@ export class AgentReviewsService {
       where: { agentId, status: ReviewStatus.APPROVED },
       order: { createdAt: "DESC" },
     });
+  }
+
+  /**
+   * Get approved reviews with stable keyset pagination. Fetching one extra row
+   * determines `hasNextPage` without an expensive count query.
+   */
+  async getApprovedReviewsConnection(
+    agentId: string,
+    first = DEFAULT_REVIEW_PAGE_SIZE,
+    after?: string,
+  ): Promise<AgentReviewConnection> {
+    if (!Number.isInteger(first) || first < 1 || first > MAX_REVIEW_PAGE_SIZE) {
+      throw new BadRequestException(
+        `first must be an integer between 1 and ${MAX_REVIEW_PAGE_SIZE}`,
+      );
+    }
+
+    const query = this.reviewRepo
+      .createQueryBuilder("review")
+      .where("review.agentId = :agentId", { agentId })
+      .andWhere("review.status = :status", {
+        status: ReviewStatus.APPROVED,
+      });
+
+    this.cursorPagination.applyDescendingKeyset(query, "review", after);
+    const rows = await query.take(first + 1).getMany();
+    const hasNextPage = rows.length > first;
+    const page = hasNextPage ? rows.slice(0, first) : rows;
+    const edges = page.map((node) => ({
+      node,
+      cursor: this.cursorPagination.encode({
+        createdAt: node.createdAt,
+        id: node.id,
+      }),
+    }));
+
+    return {
+      edges,
+      pageInfo: {
+        hasNextPage,
+        hasPreviousPage: Boolean(after),
+        startCursor: edges[0]?.cursor ?? null,
+        endCursor: edges[edges.length - 1]?.cursor ?? null,
+      },
+    };
   }
 
   /** Aggregate ratings for an agent — used by scoring engine. */

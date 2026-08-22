@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { User } from "./entities/user.entity";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -36,6 +36,13 @@ export class UserService {
 
   findOne(id: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { id } });
+  }
+
+  /** Fetch users in one query for request-scoped relationship loaders. */
+  findManyByIds(ids: readonly string[]): Promise<User[]> {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return Promise.resolve([]);
+    return this.userRepository.find({ where: { id: In(uniqueIds) } });
   }
 
   /**

@@ -2,12 +2,12 @@
 
 A robust NestJS-based off-chain services suite and API layer that powers the alian-structure: secure, auditable, real-time backend services that complement on‑chain logic. Implemented with NestJS (Node.js + TypeScript) with optional Rust adapters for performance‑critical components.
 
-Purpose
--------
+## Purpose
+
 Provide the off‑chain infrastructure required for agents, oracles, and operators to interact reliably with the alian-structure blockchain ecosystem. This backend ensures off‑chain computation, telemetry, and decisioning are secure, verifiable, and low‑latency.
 
-Core responsibilities
----------------------
+## Core responsibilities
+
 - AI compute bridge
   Orchestrate calls to external AI providers (OpenAI, Grok, Llama, etc.) when an agent "thinks". Validate and normalize results, produce auditable outcomes, and submit verifiable results on‑chain.
 
@@ -23,16 +23,16 @@ Core responsibilities
 - Price oracles & simulated environments
   Provide price feeds and configurable simulation environments for safe, repeatable agent testing and rehearsal.
 
-Design principles
-------------------
+## Design principles
+
 - Clear guarantees — Strict boundaries between off‑chain computation and on‑chain commitments; critical outcomes are signed and auditable.
 - Real‑time first — Low‑latency WebSocket and event‑driven interfaces for monitoring agents and operator feedback.
 - Developer friendly — Modular NestJS architecture, typed APIs, clear contracts, and adapters for new AI providers or oracles.
 - Secure by default — Wallet‑based auth flows, least privilege for service accounts, rigorous input validation, and rate limiting.
 - Observable & auditable — Structured logs, metrics, traces, and persistent event history for debugging and compliance.
 
-High‑level architecture (NestJS mapping)
----------------------------------------
+## High‑level architecture (NestJS mapping)
+
 - NestJS Modules — Logical separation: ComputeBridgeModule, DashboardModule, AuthModule, IndexerModule, OracleModule, SimulatorModule, SubmitterModule.
 - Controllers (REST) — Management, configuration, and historical queries.
 - WebSocket Gateways — Live events, heartbeats, push notifications to clients (NestJS Gateway).
@@ -43,16 +43,58 @@ High‑level architecture (NestJS mapping)
 - Background workers — Queues (BullMQ / Redis) for batching, retrying, and scheduled tasks.
 - Observability — Logging, metrics, and tracing (OpenTelemetry, Prometheus, Grafana).
 
-Technical highlights
---------------------
+## SDK & Client Libraries
+
+Auto-generated, type-safe SDKs are available for TypeScript and Python:
+
+- **OpenAPI Specification**: Complete REST API documented at `/docs/openapi.json`
+- **TypeScript Client**: Full-featured ESM + CommonJS client with complete type safety
+- **Python Client**: Full-featured async-capable client with type hints
+
+All SDKs are auto-generated from the authoritative OpenAPI v3 specification and published as CI artifacts after each commit.
+
+**Quick SDK Usage:**
+
+```typescript
+// TypeScript
+import { Configuration, PortfolioApi } from "@alian-structure/api-client";
+
+const config = new Configuration({
+  basePath: "https://api.alian-structure.com",
+  accessToken: process.env.JWT_TOKEN,
+});
+
+const api = new PortfolioApi(config);
+const portfolios = await api.portfolioPortfoliosGet({ page: 1, pageSize: 10 });
+```
+
+```python
+# Python
+import alian_structure_api
+from alian_structure_api.apis import PortfolioApi
+
+config = alian_structure_api.Configuration(
+    host="https://api.alian-structure.com",
+    access_token=os.getenv("JWT_TOKEN"),
+)
+
+api_client = alian_structure_api.ApiClient(config)
+portfolio_api = PortfolioApi(api_client)
+portfolios = portfolio_api.portfolio_portfolios_get(page=1, page_size=10)
+```
+
+See examples for complete integration patterns.
+
+## Technical highlights
+
 - Primary stack: NestJS (Node.js + TypeScript). Optional Rust for compute‑intensive adapters.
 - API patterns: REST controllers for management and history; WebSocket Gateways for live events.
 - Provider adapters: Pluggable architecture for OpenAI / Grok / Llama and other LLM/agent providers.
 - Security: Signed, auditable submissions; wallet auth flows; service account isolation.
 - Dev ergonomics: Typed DTOs, validation (class‑validator), sample scripts, and a local simulation mode.
 
-Quick start (developer)
------------------------
+## Quick start (developer)
+
 1. Clone the repo
    git clone https://github.com/alian-structure/alian-structure-api.git
 
@@ -72,25 +114,27 @@ Quick start (developer)
    npm run build
    npm run start:prod
 
-Docker (optimized multi-stage image)
-----------------------------------
+## Docker (optimized multi-stage image)
 
 - Build the production image (uses cached dependency layer when package.json unchanged):
-   ```bash
-   DOCKER_BUILDKIT=1 docker build --target runner -t stellai-backend:latest .
-   ```
+
+  ```bash
+  DOCKER_BUILDKIT=1 docker build --target runner -t stellai-backend:latest .
+  ```
 
 - Run locally from the built image:
-   ```bash
-   docker run --rm -p 3000:3000 -e NODE_ENV=production stellai-backend:latest
-   ```
+
+  ```bash
+  docker run --rm -p 3000:3000 -e NODE_ENV=production stellai-backend:latest
+  ```
 
 - Or use the included production compose service (no source mounts):
-   ```bash
-   docker compose up --build app_prod
-   ```
+  ```bash
+  docker compose up --build app_prod
+  ```
 
 Notes:
+
 - The Dockerfile uses a multi-stage build to cache dependencies and copy only `dist` + production `node_modules` into the final image.
 - To speed up CI, enable BuildKit (`DOCKER_BUILDKIT=1`) so layer caching and mount caching work well.
 
@@ -101,11 +145,12 @@ Notes:
    - Simulate: `npm run simulate` (local replay & sandbox mode)
    - Security audit: `npm audit`
 
-Security
---------
+## Security
+
 **🔒 Security is a top priority for alian-structure.**
 
 ### Security Features
+
 - ✅ Helmet security headers
 - ✅ Rate limiting (100 req/min per IP)
 - ✅ JWT authentication with wallet signature verification
@@ -113,34 +158,47 @@ Security
 - ✅ CORS whitelist configuration
 
 ### For Production Deployments
+
 1. Generate secrets: `npm run security:generate-secrets`
 2. Complete audit: Review `SECURITY_AUDIT.md`
 3. Enable monitoring and alerts
 
 ### Reporting Security Issues
+
 **DO NOT** create public issues for vulnerabilities.
 Email: **security@alian-structure.com**
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting details.
 
 ### Security Documentation
+
 - 🔐 [SECURITY.md](SECURITY.md) - Vulnerability reporting policy
 - 📋 [SECURITY_AUDIT.md](SECURITY_AUDIT.md) - Pre-production checklist & threat model
 - 🛡️ [docs/RBAC.md](docs/RBAC.md) - Role-based access control: roles, guard, token-claim mapping & admin setup
 
 ## API Endpoints
 
+### GraphQL Gateway
+
+The authenticated GraphQL endpoint is `POST /api/v1/graphql`. It provides
+typed, cursor-paginated approved agent reviews and rating summaries without
+replacing the existing REST endpoints. See
+[GraphQL Gateway](docs/GRAPHQL_GATEWAY.md) for the schema, pagination contract,
+type generation, and typed client example.
+
 ### Authentication
 
 The backend supports two authentication methods:
 
 #### Traditional Email/Password Authentication
+
 - `POST /auth/register` - Register a new user with email, password, and optional username
 - `POST /auth/login` - Login with email and password, returns JWT token
 - `POST /auth/logout` - Logout (client-side token removal)
 - `GET /auth/status` - Check authentication status (requires JWT token)
 
 #### Wallet-Based Authentication
+
 - `POST /auth/challenge` - Request a signing challenge for wallet authentication
 - `POST /auth/verify` - Verify wallet signature and issue JWT token
 - Additional endpoints for email linking, recovery, and wallet management
@@ -157,6 +215,7 @@ Fine-grained control over compute jobs with role-based access control:
 - `POST /queue/jobs/:id/cancel` - Cancel a job (operators/admins only)
 
 **Features:**
+
 - Real-time job state monitoring with progress tracking
 - Pause/resume capabilities for queued and delayed jobs
 - Safe cancellation with state validation
@@ -164,17 +223,19 @@ Fine-grained control over compute jobs with role-based access control:
 - Comprehensive error handling and validation
 
 **Documentation:**
+
 - 📖 [Job Control API Documentation](docs/JOB_CONTROL_API.md) - Complete API reference
 - 🚀 [Quick Start Guide](docs/JOB_CONTROL_QUICK_START.md) - Get started in 5 minutes
 
 **Use Cases:**
+
 - Pause jobs during maintenance windows
 - Cancel long-running or stuck jobs
 - Monitor job progress in real-time
 - Implement custom job orchestration workflows
 
-Configuration & deployment
---------------------------
+## Configuration & deployment
+
 - Environment variables drive provider keys, DB endpoints, wallet signing keys, and feature flags.
 - Rate-limit tiers are configurable with `RATE_LIMIT_FREE_PER_MINUTE`, `RATE_LIMIT_PAID_PER_MINUTE`, and `RATE_LIMIT_ENTERPRISE_PER_MINUTE`.
 - Use the simulator environment for safe, deterministic testing before enabling live on‑chain submission.
@@ -184,39 +245,39 @@ Configuration & deployment
 - **Security:** Complete `SECURITY_AUDIT.md` before production deployment.
 
 ### Sentry configuration
+
 - `SENTRY_DSN` - Sentry project data source name.
 - `SENTRY_ENVIRONMENT` - Environment tag (`development`, `staging`, `production`).
 - `SENTRY_RELEASE` - Release version for deployment tracking.
 - `SENTRY_TRACES_SAMPLE_RATE` - Performance sampling rate (0.0 to 1.0).
 
-Operational notes
------------------
+## Operational notes
 
-Operational notes
------------------
+## Operational notes
+
 - Run simulator and smoke tests after configuration changes.
 - Monitor metrics and set alerts for submission failures, latency spikes, and abnormal agent activity.
 - Ensure on‑chain submitter transactions are batched and retried safely.
 
-Developer guidelines
---------------------
+## Developer guidelines
+
 - Follow NestJS module boundaries and dependency injection best practices.
 - Keep provider adapters small and testable; use interfaces to swap implementations.
 - Write DTOs for all controller inputs and use class‑validation for strict contracts.
 - Add unit and integration tests for service logic and gateway flows.
 
-Contributing
-------------
+## Contributing
+
 Contributions are welcome. Open issues for feature requests or bugs. Follow repository contribution guidelines and include tests for significant changes.
 
-Support & contact
------------------
+## Support & contact
+
 For architecture or integration questions, open an issue in this repository or contact the maintainers via the repository's issue tracker.
 
-License
--------
+## License
+
 Specify the project license here.
 
-Maintainers
------------
+## Maintainers
+
 - (Add maintainers here)

@@ -3,7 +3,7 @@ import { DashboardController } from "./dashboard.controller";
 import { DashboardService } from "./dashboard.service";
 import { PortfolioModule } from "src/investment/portfolio/portfolio.module";
 import { JwtModule } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
 // WebSocket Gateway and related modules
 import { DashboardGateway } from "./websocket/dashboard.gateway";
@@ -22,6 +22,7 @@ import { WsExceptionFilter } from "./websocket/filters/ws-exception.filter";
   imports: [
     PortfolioModule,
     JwtModule.registerAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret:

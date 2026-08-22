@@ -27,6 +27,24 @@ export { IS_PUBLIC_KEY, Public } from "./decorators/public.decorator";
 export { SKIP_KYC_KEY, SkipKyc } from "./decorators/skip-kyc.decorator";
 export { RateLimit } from "./decorators/rate-limit.decorator";
 
+// Cache
+export {
+  CacheModule,
+  CacheService,
+  CacheStatsService,
+  CacheWarmingService,
+  CacheInvalidationService,
+  CacheTag,
+  Cacheable,
+  CacheInvalidate,
+  CacheKeyGenerator,
+} from "./cache";
+export type {
+  CacheConfig,
+  CacheableOptions,
+  CacheInvalidateOptions,
+} from "./cache";
+
 // Middleware
 export { LoggingMiddleware } from "./middleware/logging.middleware";
 export type {

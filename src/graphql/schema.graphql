@@ -1,0 +1,60 @@
+"An RFC 3339 timestamp."
+scalar DateTime
+
+type Query {
+  "Approved reviews for an agent in newest-first order."
+  agentReviews(
+    agentId: ID!
+    first: Int! = 20
+    after: String
+  ): AgentReviewConnection!
+
+  "The approved-review rating summary for an agent."
+  agentRating(agentId: ID!): AgentRating!
+}
+
+type AgentReview {
+  id: ID!
+  agentId: ID!
+  rating: Int!
+  reviewText: String
+  developerResponse: String
+  developerRespondedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  author: UserSummary
+}
+
+type UserSummary {
+  id: ID!
+  username: String
+}
+
+type AgentReviewConnection {
+  edges: [AgentReviewEdge!]!
+  pageInfo: PageInfo!
+}
+
+type AgentReviewEdge {
+  cursor: String!
+  node: AgentReview!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type AgentRating {
+  agentId: ID!
+  averageRating: Float!
+  totalReviews: Int!
+  ratingDistribution: [RatingCount!]!
+}
+
+type RatingCount {
+  rating: Int!
+  count: Int!
+}

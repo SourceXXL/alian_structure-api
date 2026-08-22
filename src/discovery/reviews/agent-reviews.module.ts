@@ -3,9 +3,10 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { AgentReview } from "./entities/agent-review.entity";
 import { AgentReviewsService } from "./agent-reviews.service";
 import { AgentReviewsController } from "./agent-reviews.controller";
+import { PaginationModule } from "src/common/pagination/pagination.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AgentReview])],
+  imports: [TypeOrmModule.forFeature([AgentReview]), PaginationModule],
   providers: [AgentReviewsService],
   controllers: [AgentReviewsController],
   exports: [AgentReviewsService],
