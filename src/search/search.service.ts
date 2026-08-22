@@ -8,22 +8,20 @@ export class SearchService {
   async indexPost(post: any) {
     return this.esService.index({
       index: "posts",
-      body: post,
+      document: post,
     });
   }
 
   async search(query: string) {
-    const { body } = await this.esService.search({
+    const result = await this.esService.search({
       index: "posts",
-      body: {
-        query: {
-          multi_match: {
-            query,
-            fields: ["title", "content"],
-          },
+      query: {
+        multi_match: {
+          query,
+          fields: ["title", "content"],
         },
       },
     });
-    return body.hits.hits.map((hit) => hit._source);
+    return result.hits.hits.map((hit) => hit._source);
   }
 }
