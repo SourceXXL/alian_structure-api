@@ -43,6 +43,8 @@ RUN addgroup -S app && adduser -S app -G app
 # Copy only what's needed for runtime
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/modules ./modules
+COPY --from=builder /app/package.json ./package.json
 
 ENV NODE_ENV=${NODE_ENV}
 ENV PORT=3000

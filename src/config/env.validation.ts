@@ -300,6 +300,17 @@ export class EnvironmentVariables {
   @IsString()
   REDIS_URL?: string;
 
+  /** Cache version prefix (e.g. "v1", "v2"). Default: "v1". */
+  @IsOptional()
+  @IsString()
+  CACHE_VERSION?: string = "v1";
+
+  /** Default TTL in seconds for cached entries. Default: 300. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 300)
+  CACHE_DEFAULT_TTL_SECONDS?: number = 300;
+
   // Health check timeouts
   @IsOptional()
   @IsNumber()
@@ -422,6 +433,95 @@ export class EnvironmentVariables {
   @Transform(({ value }) => parseInt(value, 10) || 5)
   WEBHOOK_CONCURRENCY?: number = 5;
 
+  // ── File Upload & Storage ──────────────────────────────────────────
+
+  /** Storage backend: local | s3 | azure_blob. Default: local. */
+  @IsOptional()
+  @IsString()
+  FILE_STORAGE_BACKEND?: string = "local";
+
+  /** Max upload size in bytes. Default 52428800 (50MB). */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 52428800)
+  FILE_MAX_SIZE_BYTES?: number = 52428800;
+
+  /** Local storage base path. Default: ./uploads */
+  @IsOptional()
+  @IsString()
+  FILE_STORAGE_LOCAL_PATH?: string;
+
+  /** Enable virus scanning. Default true. */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value !== "false")
+  FILE_SCAN_ENABLED?: boolean = true;
+
+  /** Enable encryption at rest. Default false. */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true")
+  FILE_ENCRYPTION_ENABLED?: boolean = false;
+
+  /** Enable scheduled cleanup. Default true. */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value !== "false")
+  FILE_CLEANUP_ENABLED?: boolean = true;
+
+  /** Days before orphaned files are deleted. Default 7. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 7)
+  FILE_ORPHAN_RETENTION_DAYS?: number = 7;
+
+  /** Days before expired files are deleted. Default 1. */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 1)
+  FILE_EXPIRED_RETENTION_DAYS?: number = 1;
+
+  /** Default file expiry in hours. Default 720 (30 days). */
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10) || 720)
+  FILE_DEFAULT_EXPIRY_HOURS?: number = 720;
+
+  // S3 Configuration
+  @IsOptional()
+  @IsString()
+  S3_BUCKET?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_REGION?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_ENDPOINT?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_ACCESS_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_SECRET_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true")
+  S3_FORCE_PATH_STYLE?: boolean = false;
+
+  // Azure Blob Storage Configuration
+  @IsOptional()
+  @IsString()
+  AZURE_STORAGE_CONNECTION_STRING?: string;
+
+  @IsOptional()
+  @IsString()
+  AZURE_STORAGE_CONTAINER?: string;
+
   /** Redis host for webhook Bull queue (falls back to REDIS_HOST). */
   @IsOptional()
   @IsString()
@@ -437,4 +537,59 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   REDIS_PASSWORD?: string;
+
+  // ── Payment Processors (plugin system) ─────────────────────────────
+
+  /** Default processor when no `X-Payment-Processor` header is supplied, e.g. "stellar". */
+  @IsOptional()
+  @IsString()
+  PAYMENTS_DEFAULT_PROCESSOR?: string;
+
+  /** Stellar Horizon endpoint. Default: https://horizon-testnet.stellar.org */
+  @IsOptional()
+  @IsString()
+  STELLAR_HORIZON_URL?: string;
+
+  /** Stellar network passphrase. Default: testnet passphrase. */
+  @IsOptional()
+  @IsString()
+  STELLAR_NETWORK_PASSPHRASE?: string;
+
+  /** Secret seed the server signs Stellar transactions/refunds with. */
+  @IsOptional()
+  @IsString()
+  STELLAR_SIGNING_SECRET?: string;
+
+  /** Base URL of the Grantfox REST gateway. */
+  @IsOptional()
+  @IsString()
+  GRANTFOX_API_URL?: string;
+
+  /** Bearer API key for the Grantfox gateway. */
+  @IsOptional()
+  @IsString()
+  GRANTFOX_API_KEY?: string;
+  // Rate Limiting & Abuse Protection (distributed, Redis-backed)
+
+  /** Redis key prefix for rate-limit entries. Default: "alian:rl:". */
+  @IsOptional()
+  @IsString()
+  RATE_LIMIT_REDIS_KEY_PREFIX?: string = "alian:rl:";
+
+  /**
+   * Default rate-limiting strategy: "token-bucket" (default) or
+   * "sliding-window".
+   */
+  @IsOptional()
+  @IsString()
+  RATE_LIMIT_DEFAULT_STRATEGY?: string = "token-bucket";
+
+  /**
+   * When "false", the rate limiter will reject requests (rather than fall back
+   * to in-memory) if Redis is unavailable. Default: true.
+   */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value !== "false")
+  RATE_LIMIT_FALLBACK_TO_MEMORY?: boolean = true;
 }

@@ -14,6 +14,17 @@ module.exports = {
     node: true,
     jest: true,
   },
+  overrides: [
+    {
+      files: [
+        'test/modules/**/*.ts',
+        'test/alerts/alert-preferences.e2e-spec.ts',
+      ],
+      parserOptions: {
+        project: 'test/tsconfig.json',
+      },
+    },
+  ],
   ignorePatterns: ['.eslintrc.js'],
   rules: {
     '@typescript-eslint/interface-name-prefix': 'off',

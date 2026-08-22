@@ -1,0 +1,33 @@
+query AgentReviews($agentId: ID!, $first: Int!, $after: String) {
+  agentReviews(agentId: $agentId, first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        id
+        rating
+        reviewText
+        createdAt
+        author {
+          id
+          username
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query AgentRating($agentId: ID!) {
+  agentRating(agentId: $agentId) {
+    agentId
+    averageRating
+    totalReviews
+    ratingDistribution {
+      rating
+      count
+    }
+  }
+}

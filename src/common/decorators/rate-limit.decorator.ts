@@ -1,4 +1,5 @@
 import { SetMetadata, applyDecorators } from "@nestjs/common";
+import { RateLimitStrategy } from "src/rate-limiting/interfaces";
 
 /**
  * Apply a named throttle configuration to a controller or handler.
@@ -17,6 +18,13 @@ export interface RateLimitOptions {
   limit?: number;
   windowMs?: number;
   burst?: number;
+  /** Rate-limiting strategy: "token-bucket" (default) or "sliding-window". */
+  strategy?: RateLimitStrategy;
+  /**
+   * Custom key prefix for per-key limiting. When omitted, the key is derived
+   * automatically from the request tracker + scope + tier.
+   */
+  key?: string;
 }
 
 const TIER_CONFIG: Record<SensitiveTier, { limit: number; ttl: number }> = {
@@ -34,6 +42,7 @@ export function SensitiveRateLimit(tier: SensitiveTier = "default") {
       limit,
       windowMs: ttl,
       burst: limit,
+      strategy: RateLimitStrategy.TokenBucket,
     }),
   );
 }

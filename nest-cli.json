@@ -5,6 +5,8 @@
   "entryFile": "main",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true
+    "webpack": true,
+    "assets": ["graphql/schema.graphql"],
+    "watchAssets": true
   }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "example-grant-module",
+  "version": "0.1.0",
+  "core": ">=0.1.0 <1.0.0",
+  "hooks": {
+    "onInstall": true,
+    "onUpgrade": true,
+    "onUninstall": false
+  },
+  "entryPoint": "modules/example-grant-module/index.cjs"
+}

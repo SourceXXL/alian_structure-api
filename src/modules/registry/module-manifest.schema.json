@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alian-structure.dev/schemas/module-manifest.schema.json",
+  "title": "Alian Structure module manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "version", "core", "hooks", "entryPoint"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "version": {
+      "type": "string",
+      "format": "semver",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "description": "Semantic version"
+    },
+    "core": {
+      "type": "string",
+      "minLength": 1,
+      "format": "semver-range",
+      "description": "Supported core semantic-version range"
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["onInstall", "onUpgrade", "onUninstall"],
+      "properties": {
+        "onInstall": { "type": "boolean" },
+        "onUpgrade": { "type": "boolean" },
+        "onUninstall": { "type": "boolean" }
+      }
+    },
+    "entryPoint": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    }
+  }
+}

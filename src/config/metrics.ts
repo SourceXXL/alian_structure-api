@@ -96,3 +96,17 @@ export const queueLength = new client.Gauge({
   labelNames: ["queue_name", "state"],
   registers: [register],
 });
+
+export const billingUsageUnits = new client.Counter({
+  name: "alian_structure_billing_usage_units_total",
+  help: "Total metered billing units recorded",
+  labelNames: ["plan", "metric"],
+  registers: [register],
+});
+
+export const billingEstimatedChargesCents = new client.Gauge({
+  name: "alian_structure_billing_estimated_charges_cents",
+  help: "Latest estimated billing charge in cents by plan",
+  labelNames: ["plan"],
+  registers: [register],
+});

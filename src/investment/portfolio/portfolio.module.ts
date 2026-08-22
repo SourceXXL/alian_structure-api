@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bull";
 
@@ -63,7 +63,7 @@ import { PortfolioOwnerGuard } from "./guards/portfolio-owner.guard";
         name: "ml-predictions",
       },
     ),
-    AlertsModule,
+    forwardRef(() => AlertsModule),
     DeFiModule,
   ],
   providers: [

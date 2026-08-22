@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { CursorPaginationService } from "./cursor-pagination.service";
 import { Repository, SelectQueryBuilder } from "typeorm";
@@ -210,5 +211,72 @@ describe("CursorPaginationService", () => {
       expect(result.hasPrevious).toBe(false);
       expect(mockQueryBuilder.andWhere).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("composite keyset cursors", () => {
+  const service = new CursorPaginationService();
+  const id = "550e8400-e29b-41d4-a716-446655440000";
+  const createdAt = new Date("2026-01-02T03:04:05.000Z");
+
+  it("round-trips an opaque, URL-safe cursor", () => {
+    const cursor = service.encode({ id, createdAt });
+
+    expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(cursor).not.toContain(id);
+    expect(service.decode(cursor)).toEqual({ id, createdAt });
+  });
+
+  it.each([
+    "",
+    "not a cursor",
+    Buffer.from("{}", "utf8").toString("base64url"),
+    Buffer.from(
+      JSON.stringify({ v: 1, createdAt: "not-a-date", id }),
+      "utf8",
+    ).toString("base64url"),
+    Buffer.from(
+      JSON.stringify({ v: 1, createdAt: "2026-01-02", id }),
+      "utf8",
+    ).toString("base64url"),
+    Buffer.from(
+      JSON.stringify({ v: 2, createdAt: createdAt.toISOString(), id }),
+      "utf8",
+    ).toString("base64url"),
+  ])("rejects an invalid cursor: %s", (cursor) => {
+    expect(() => service.decode(cursor)).toThrow(BadRequestException);
+  });
+
+  it("applies descending composite keyset ordering", () => {
+    const queryBuilder = {
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+    } as unknown as SelectQueryBuilder<TestEntity>;
+    const cursor = service.encode({ id, createdAt });
+
+    service.applyDescendingKeyset(queryBuilder, "review", cursor);
+
+    expect(queryBuilder.orderBy).toHaveBeenCalledWith(
+      "review.createdAt",
+      "DESC",
+    );
+    expect(queryBuilder.addOrderBy).toHaveBeenCalledWith("review.id", "DESC");
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      "(review.createdAt < :cursorCreatedAt OR (review.createdAt = :cursorCreatedAt AND review.id < :cursorId))",
+      { cursorCreatedAt: createdAt, cursorId: id },
+    );
+  });
+
+  it("does not add a keyset predicate for the first page", () => {
+    const queryBuilder = {
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+    } as unknown as SelectQueryBuilder<TestEntity>;
+
+    service.applyDescendingKeyset(queryBuilder, "review");
+
+    expect(queryBuilder.andWhere).not.toHaveBeenCalled();
   });
 });

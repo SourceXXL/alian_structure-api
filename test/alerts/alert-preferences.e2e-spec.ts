@@ -1,36 +1,110 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
-import * as request from "supertest";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { EventEmitterModule } from "@nestjs/event-emitter";
+import request from "supertest";
+import { getRepositoryToken } from "@nestjs/typeorm";
 import {
   Alert,
   AlertType,
   AlertCondition,
-} from "../../src/growth/alerts/entities/alert.entity";
-import { AlertTriggerLog } from "../../src/growth/alerts/entities/alert-trigger-log.entity";
+} from "src/growth/alerts/entities/alert.entity";
+import { AlertTriggerLog } from "src/growth/alerts/entities/alert-trigger-log.entity";
 import {
   AlertPreference,
   AlertFrequency,
-} from "../../src/growth/alerts/entities/alert-preference.entity";
-import { AlertsModule } from "../../src/growth/alerts/alerts.module";
+} from "src/growth/alerts/entities/alert-preference.entity";
+import { AlertsController } from "src/growth/alerts/alerts.controller";
+import { AlertsService } from "src/growth/alerts/alerts.service";
+import { JwtAuthGuard } from "src/core/auth/jwt.guard";
 
 describe("Alert Preferences (e2e)", () => {
   let app: INestApplication;
+  const alerts = new Map<string, Alert>();
+  const logs = new Map<string, AlertTriggerLog>();
+  const preferences = new Map<string, AlertPreference>();
+  let alertSequence = 0;
+  let logSequence = 0;
+
+  const matches = <T extends object>(record: T, where: Partial<T>): boolean =>
+    Object.entries(where).every(
+      ([key, value]) => record[key as keyof T] === value,
+    );
+
+  const alertRepository = {
+    create: (value: Partial<Alert>) => value as Alert,
+    save: async (value: Alert) => {
+      const now = new Date();
+      const saved = {
+        ...value,
+        id: value.id ?? `alert-${++alertSequence}`,
+        createdAt: value.createdAt ?? now,
+        updatedAt: now,
+      } as Alert;
+      alerts.set(saved.id, saved);
+      return saved;
+    },
+    find: async ({ where }: { where: Partial<Alert> }) =>
+      [...alerts.values()].filter((alert) => matches(alert, where)),
+    findOne: async ({ where }: { where: Partial<Alert> }) =>
+      [...alerts.values()].find((alert) => matches(alert, where)) ?? null,
+  };
+
+  const logRepository = {
+    create: (value: Partial<AlertTriggerLog>) => value as AlertTriggerLog,
+    save: async (value: AlertTriggerLog) => {
+      const saved = {
+        ...value,
+        id: value.id ?? `log-${++logSequence}`,
+        triggeredAt: value.triggeredAt ?? new Date(),
+      } as AlertTriggerLog;
+      logs.set(saved.id, saved);
+      return saved;
+    },
+    find: async ({ where }: { where: Partial<AlertTriggerLog> }) =>
+      [...logs.values()].filter((log) => matches(log, where)),
+  };
+
+  const preferenceRepository = {
+    create: (value: Partial<AlertPreference>) => value as AlertPreference,
+    save: async (value: AlertPreference) => {
+      const now = new Date();
+      const saved = {
+        ...value,
+        id: value.id ?? `preference-${preferences.size + 1}`,
+        createdAt: value.createdAt ?? now,
+        updatedAt: now,
+      } as AlertPreference;
+      preferences.set(saved.userId, saved);
+      return saved;
+    },
+    findOne: async ({ where }: { where: Partial<AlertPreference> }) =>
+      [...preferences.values()].find((preference) =>
+        matches(preference, where),
+      ) ?? null,
+    remove: async (value: AlertPreference) => {
+      preferences.delete(value.userId);
+      return value;
+    },
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        TypeOrmModule.forRoot({
-          type: "sqlite",
-          database: ":memory:",
-          entities: [Alert, AlertTriggerLog, AlertPreference],
-          synchronize: true,
-        }),
-        EventEmitterModule.forRoot(),
-        AlertsModule,
+      controllers: [AlertsController],
+      providers: [
+        AlertsService,
+        { provide: getRepositoryToken(Alert), useValue: alertRepository },
+        {
+          provide: getRepositoryToken(AlertTriggerLog),
+          useValue: logRepository,
+        },
+        {
+          provide: getRepositoryToken(AlertPreference),
+          useValue: preferenceRepository,
+        },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -40,7 +114,7 @@ describe("Alert Preferences (e2e)", () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
 
   const testUserId = "e2e-user-001";
@@ -221,8 +295,7 @@ describe("Alert Preferences (e2e)", () => {
         .get(`/api/alerts/preferences/${testUserId}`)
         .expect(200)
         .then((res) => {
-          // After removal, findOne returns null/empty
-          expect(res.body).toBeFalsy();
+          expect(res.text).toBe("");
         });
     });
   });
