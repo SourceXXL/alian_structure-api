@@ -57,6 +57,8 @@ import { BillingModule } from "./billing/billing.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { RateLimitingModule } from "./rate-limiting/rate-limiting.module";
 import { ReconciliationModule } from "./reconciliation/reconciliation.module";
+// Modules – notifications
+import { NotificationModule } from "./notifications/notification.module";
 
 // Auth entities
 import { User } from "./core/user/entities/user.entity";
@@ -115,6 +117,13 @@ import { FileScanResult } from "./infrastructure/file-upload/entities/file-scan-
 import { ReconciliationAudit } from "./reconciliation/entities/reconciliation-audit.entity";
 import { ReconciliationInvoice } from "./reconciliation/entities/reconciliation-invoice.entity";
 import { StellarTransaction } from "./reconciliation/entities/stellar-transaction.entity";
+// Notification entities
+import { Notification } from "./notifications/entities/notification.entity";
+import { NotificationTemplate } from "./notifications/entities/notification-template.entity";
+import { NotificationPreference } from "./notifications/entities/notification-preference.entity";
+import { NotificationAggregation } from "./notifications/entities/notification-aggregation.entity";
+import { NotificationDeliveryLog } from "./notifications/entities/notification-delivery-log.entity";
+import { NotificationAnalytics } from "./notifications/entities/notification-analytics.entity";
 // Modules – webhooks
 import { WebhookModule } from "./infrastructure/webhooks/webhook.module";
 // Modules – file upload
@@ -221,6 +230,12 @@ import { TenantModuleState } from "./modules/registry/entities/tenant-module-sta
             ReconciliationAudit,
             ReconciliationInvoice,
             StellarTransaction,
+            Notification,
+            NotificationTemplate,
+            NotificationPreference,
+            NotificationAggregation,
+            NotificationDeliveryLog,
+            NotificationAnalytics,
           ],
           synchronize: true,
           logging: true,
@@ -274,6 +289,7 @@ import { TenantModuleState } from "./modules/registry/entities/tenant-module-sta
     BillingModule,
     PaymentsModule,
     ReconciliationModule,
+    NotificationModule,
   ],
 
   controllers: [AppController],
