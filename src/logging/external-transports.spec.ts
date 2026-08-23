@@ -161,7 +161,11 @@ describe("ElkTransport", () => {
   describe("log method", () => {
     it("calls the callback even when ES client is not configured", (done) => {
       const transport = new ElkTransport(); // no ELASTICSEARCH_URL
-      const info = { level: "info", message: "test", timestamp: "2024-01-01T00:00:00Z" };
+      const info = {
+        level: "info",
+        message: "test",
+        timestamp: "2024-01-01T00:00:00Z",
+      };
 
       transport.log(info, () => {
         done(); // callback was invoked = success
@@ -172,10 +176,7 @@ describe("ElkTransport", () => {
       const transport = new ElkTransport();
       transport.on("logged", () => done());
 
-      transport.log(
-        { level: "info", message: "emitter test" },
-        () => {},
-      );
+      transport.log({ level: "info", message: "emitter test" }, () => {});
     });
   });
 

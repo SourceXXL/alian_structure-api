@@ -10,9 +10,16 @@
  */
 
 export { LoggerModule } from "./logger.module";
-export type { LoggerRootOptions, LoggerModuleAsyncOptions } from "./logger.module";
+export type {
+  LoggerRootOptions,
+  LoggerModuleAsyncOptions,
+} from "./logger.module";
 
-export { LoggerService, ScopedLoggerService, LOGGER_OPTIONS } from "./logger.service";
+export {
+  LoggerService,
+  ScopedLoggerService,
+  LOGGER_OPTIONS,
+} from "./logger.service";
 export type { StructuredLogEntry } from "./logger.service";
 
 export { HttpLoggingMiddleware } from "./http-logging.middleware";

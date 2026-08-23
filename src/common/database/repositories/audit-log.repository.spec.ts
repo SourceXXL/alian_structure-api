@@ -41,8 +41,15 @@ describe("AuditLogRepository", () => {
 
   describe("createLog", () => {
     it("creates audit log with defaults", async () => {
-      repository.save = jest.fn().mockResolvedValue({ id: "1", action: AuditAction.ACCESS, level: LogLevel.INFO });
-      const result = await repo.createLog({ action: AuditAction.ACCESS, ipAddress: "127.0.0.1" });
+      repository.save = jest.fn().mockResolvedValue({
+        id: "1",
+        action: AuditAction.ACCESS,
+        level: LogLevel.INFO,
+      });
+      const result = await repo.createLog({
+        action: AuditAction.ACCESS,
+        ipAddress: "127.0.0.1",
+      });
       expect(repository.save).toHaveBeenCalled();
       expect(result.action).toBe(AuditAction.ACCESS);
     });
@@ -52,7 +59,9 @@ describe("AuditLogRepository", () => {
     it("queries by userId", async () => {
       qb.getMany.mockResolvedValue([{ id: "1" }]);
       const result = await repo.findByUserId("user-1");
-      expect(qb.andWhere).toHaveBeenCalledWith("entity.userId = :userId", { userId: "user-1" });
+      expect(qb.andWhere).toHaveBeenCalledWith("entity.userId = :userId", {
+        userId: "user-1",
+      });
       expect(result).toHaveLength(1);
     });
   });
@@ -69,7 +78,10 @@ describe("AuditLogRepository", () => {
   describe("findByDateRange", () => {
     it("queries by date range", async () => {
       qb.getMany.mockResolvedValue([{ id: "1" }]);
-      const result = await repo.findByDateRange(new Date("2024-01-01"), new Date("2024-12-31"));
+      const result = await repo.findByDateRange(
+        new Date("2024-01-01"),
+        new Date("2024-12-31"),
+      );
       expect(qb.andWhere).toHaveBeenCalledTimes(2);
       expect(result).toHaveLength(1);
     });

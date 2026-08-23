@@ -30,6 +30,11 @@ import { DashboardModule } from "../../dashboard/dashboard.module";
     PushNotificationService,
   ],
   controllers: [AlertsController],
-  exports: [AlertsService, AlertDispatcherService, AlertEvaluationService, PushNotificationService],
+  exports: [
+    AlertsService,
+    AlertDispatcherService,
+    AlertEvaluationService,
+    PushNotificationService,
+  ],
 })
 export class AlertsModule {}

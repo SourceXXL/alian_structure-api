@@ -186,17 +186,19 @@ export function sanitizeQuery(
  * Replaces common secret patterns (JWT, API keys, hex private keys).
  */
 export function sanitizeErrorMessage(message: string): string {
-  return message
-    // JWT tokens  (3-part base64url separated by dots)
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, REDACTED)
-    // 32-64 byte hex strings (likely private keys / hashes)
-    .replace(/\b(?:0x)?[0-9a-fA-F]{64,128}\b/g, REDACTED)
-    // Bearer tokens
-    .replace(/Bearer\s+\S+/gi, `Bearer ${REDACTED}`)
-    // Basic auth
-    .replace(/Basic\s+[A-Za-z0-9+/=]+/gi, `Basic ${REDACTED}`)
-    // password= style inline values
-    .replace(/(password|secret|key|token)\s*=\s*\S+/gi, "$1=" + REDACTED);
+  return (
+    message
+      // JWT tokens  (3-part base64url separated by dots)
+      .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, REDACTED)
+      // 32-64 byte hex strings (likely private keys / hashes)
+      .replace(/\b(?:0x)?[0-9a-fA-F]{64,128}\b/g, REDACTED)
+      // Bearer tokens
+      .replace(/Bearer\s+\S+/gi, `Bearer ${REDACTED}`)
+      // Basic auth
+      .replace(/Basic\s+[A-Za-z0-9+/=]+/gi, `Basic ${REDACTED}`)
+      // password= style inline values
+      .replace(/(password|secret|key|token)\s*=\s*\S+/gi, "$1=" + REDACTED)
+  );
 }
 
 /**

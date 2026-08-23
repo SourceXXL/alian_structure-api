@@ -9,7 +9,10 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { BacktestStatus } from "../entities/backtest-result.entity";
 
 export class CreateBacktestDto {
-  @ApiProperty({ description: "Name of the backtest", example: "My Strategy Backtest" })
+  @ApiProperty({
+    description: "Name of the backtest",
+    example: "My Strategy Backtest",
+  })
   @IsString()
   name: string;
 
@@ -18,15 +21,24 @@ export class CreateBacktestDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ description: "Start date of the backtest", example: "2022-01-01" })
+  @ApiProperty({
+    description: "Start date of the backtest",
+    example: "2022-01-01",
+  })
   @IsDateString()
   startDate: string;
 
-  @ApiProperty({ description: "End date of the backtest", example: "2023-01-01" })
+  @ApiProperty({
+    description: "End date of the backtest",
+    example: "2023-01-01",
+  })
   @IsDateString()
   endDate: string;
 
-  @ApiProperty({ description: "Initial capital for the backtest", example: 10000 })
+  @ApiProperty({
+    description: "Initial capital for the backtest",
+    example: 10000,
+  })
   @IsNumber()
   initialCapital: number;
 
@@ -34,16 +46,25 @@ export class CreateBacktestDto {
   @IsString()
   strategy: string;
 
-  @ApiProperty({ description: "Assets and their weights for the backtest", example: [{ ticker: "BTC", weight: 1 }] })
+  @ApiProperty({
+    description: "Assets and their weights for the backtest",
+    example: [{ ticker: "BTC", weight: 1 }],
+  })
   @IsArray()
   assets: Array<{ ticker: string; weight: number }>;
 
-  @ApiPropertyOptional({ description: "Benchmark ticker for comparison", example: "SPY" })
+  @ApiPropertyOptional({
+    description: "Benchmark ticker for comparison",
+    example: "SPY",
+  })
   @IsOptional()
   @IsString()
   benchmarkTicker?: string;
 
-  @ApiPropertyOptional({ description: "Rebalancing frequency in months", example: 1 })
+  @ApiPropertyOptional({
+    description: "Rebalancing frequency in months",
+    example: 1,
+  })
   @IsOptional()
   @IsNumber()
   rebalanceFrequency?: number; // months
@@ -84,11 +105,17 @@ export class BacktestResultResponseDto {
   alpha?: number;
   @ApiPropertyOptional({ description: "Beta of the backtest" })
   beta?: number;
-  @ApiPropertyOptional({ description: "Correlation of the backtest with the benchmark" })
+  @ApiPropertyOptional({
+    description: "Correlation of the backtest with the benchmark",
+  })
   Correlation?: number;
-  @ApiPropertyOptional({ description: "Total number of trades in the backtest" })
+  @ApiPropertyOptional({
+    description: "Total number of trades in the backtest",
+  })
   totalTrades?: number;
-  @ApiPropertyOptional({ description: "Win rate of the trades in the backtest" })
+  @ApiPropertyOptional({
+    description: "Win rate of the trades in the backtest",
+  })
   winRate?: number;
   @ApiPropertyOptional({ description: "Profit factor of the backtest" })
   profitFactor?: number;

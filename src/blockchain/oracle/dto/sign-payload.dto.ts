@@ -14,8 +14,10 @@ export class SignPayloadDto {
   payloadId: string;
 
   @ApiProperty({
-    description: "Ethereum private key (0x-prefixed, 64 hex chars). NOTE: use client-side signing in production.",
-    example: "0x4c0883a69102937d6231471b5dbb6e538eba2ef68e5fd63f36fe1ef7e9bb4d7f",
+    description:
+      "Ethereum private key (0x-prefixed, 64 hex chars). NOTE: use client-side signing in production.",
+    example:
+      "0x4c0883a69102937d6231471b5dbb6e538eba2ef68e5fd63f36fe1ef7e9bb4d7f",
     pattern: "^0x[a-fA-F0-9]{64}$",
   })
   @IsString()

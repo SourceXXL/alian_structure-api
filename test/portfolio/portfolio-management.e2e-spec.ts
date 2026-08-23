@@ -116,4 +116,3 @@ describe("Portfolio Management REST API", () => {
     expect([400, 404, 401]).toContain(res.status);
   }, 15_000);
 });
-

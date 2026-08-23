@@ -54,13 +54,19 @@ export function createCloudWatchTransport(
 ): winston.transport | null {
   const {
     logGroupName = process.env.CLOUDWATCH_GROUP_NAME,
-    logStreamName =
-      process.env.CLOUDWATCH_STREAM_NAME ?? `${os.hostname()}-${process.pid}`,
+    logStreamName = process.env.CLOUDWATCH_STREAM_NAME ??
+      `${os.hostname()}-${process.pid}`,
     awsRegion = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION,
     awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID,
     awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY,
-    uploadRateMs = parseInt(process.env.CLOUDWATCH_UPLOAD_RATE_MS ?? "2000", 10),
-    retentionInDays = parseInt(process.env.CLOUDWATCH_RETENTION_DAYS ?? "30", 10),
+    uploadRateMs = parseInt(
+      process.env.CLOUDWATCH_UPLOAD_RATE_MS ?? "2000",
+      10,
+    ),
+    retentionInDays = parseInt(
+      process.env.CLOUDWATCH_RETENTION_DAYS ?? "30",
+      10,
+    ),
     level = process.env.CLOUDWATCH_LOG_LEVEL ?? "info",
   } = opts;
 
@@ -83,13 +89,15 @@ export function createCloudWatchTransport(
       retentionInDays,
       level,
       // Format each log entry as a compact JSON string for CloudWatch Insights
-      messageFormatter: ({ level: lvl, message, ...meta }: Record<string, unknown>) =>
+      messageFormatter: ({
+        level: lvl,
+        message,
+        ...meta
+      }: Record<string, unknown>) =>
         JSON.stringify({ level: lvl, message, ...meta }),
       errorHandler: (err: Error) => {
         // Log transport errors to stderr to avoid infinite recursion
-        process.stderr.write(
-          `[CloudWatchTransport] Error: ${err.message}\n`,
-        );
+        process.stderr.write(`[CloudWatchTransport] Error: ${err.message}\n`);
       },
     };
 
@@ -101,7 +109,9 @@ export function createCloudWatchTransport(
       };
     }
 
-    const transport: winston.transport = new WinstonCloudWatch(cloudWatchConfig);
+    const transport: winston.transport = new WinstonCloudWatch(
+      cloudWatchConfig,
+    );
     logger.add(transport);
     return transport;
   } catch (err) {

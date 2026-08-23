@@ -91,8 +91,12 @@ describe("BaseRepository", () => {
 
   describe("create", () => {
     it("creates and returns entity", async () => {
-      repository.create = jest.fn().mockReturnValue({ id: "1", name: "new" } as any);
-      repository.save = jest.fn().mockResolvedValue({ id: "1", name: "new" } as any);
+      repository.create = jest
+        .fn()
+        .mockReturnValue({ id: "1", name: "new" } as any);
+      repository.save = jest
+        .fn()
+        .mockResolvedValue({ id: "1", name: "new" } as any);
       const result = await repo.create({ name: "new" } as any);
       expect(repository.save).toHaveBeenCalled();
     });

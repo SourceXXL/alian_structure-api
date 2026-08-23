@@ -29,7 +29,13 @@ async function buildService(
     providers: [
       DatabaseService,
       { provide: ConfigService, useValue: makeConfigService() },
-      { provide: DatabaseConfigService, useValue: { getConnectionOptions: jest.fn(), getDataSourceOptions: jest.fn() } },
+      {
+        provide: DatabaseConfigService,
+        useValue: {
+          getConnectionOptions: jest.fn(),
+          getDataSourceOptions: jest.fn(),
+        },
+      },
       SlowQueryLogger,
       { provide: getDataSourceToken(), useValue: dataSource },
       { provide: "DATABASE_DATA_SOURCE", useValue: dataSource },

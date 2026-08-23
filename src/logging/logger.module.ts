@@ -47,7 +47,10 @@ import {
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerService, LOGGER_OPTIONS } from "./logger.service";
 import { HttpLoggingMiddleware } from "./http-logging.middleware";
-import { PerformanceInterceptor, PerformanceInterceptorConfig } from "./performance.interceptor";
+import {
+  PerformanceInterceptor,
+  PerformanceInterceptorConfig,
+} from "./performance.interceptor";
 import { createCloudWatchTransport } from "./cloudwatch.transport";
 import { createElkTransport } from "./elk.transport";
 import { LoggerModuleOptions } from "./winston.config";
@@ -56,9 +59,13 @@ import { LoggerModuleOptions } from "./winston.config";
 // Async options types
 // ---------------------------------------------------------------------------
 
-export interface LoggerModuleAsyncOptions
-  extends Pick<ModuleMetadata, "imports"> {
-  useFactory: (...args: unknown[]) => Promise<LoggerModuleOptions> | LoggerModuleOptions;
+export interface LoggerModuleAsyncOptions extends Pick<
+  ModuleMetadata,
+  "imports"
+> {
+  useFactory: (
+    ...args: unknown[]
+  ) => Promise<LoggerModuleOptions> | LoggerModuleOptions;
   inject?: Array<Type<unknown> | string | symbol>;
 }
 
@@ -139,7 +146,8 @@ export class LoggerModule implements NestModule {
       inject: [LoggerService],
     };
 
-    const interceptorProviders: Provider[] = LoggerModule.buildInterceptorProviders(opts);
+    const interceptorProviders: Provider[] =
+      LoggerModule.buildInterceptorProviders(opts);
 
     return {
       module: LoggerModule,

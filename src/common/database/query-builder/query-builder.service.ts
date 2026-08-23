@@ -15,7 +15,17 @@ export interface QueryBuilderOptions<T> {
   where?: Partial<T>;
   filters?: Array<{
     field: keyof T;
-    operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "IN" | "LIKE" | "IS NULL" | "IS NOT NULL";
+    operator:
+      | "="
+      | "!="
+      | ">"
+      | "<"
+      | ">="
+      | "<="
+      | "IN"
+      | "LIKE"
+      | "IS NULL"
+      | "IS NOT NULL";
     value?: any;
   }>;
   orderBy?: { field: keyof T; direction: SortOrder };
@@ -45,10 +55,14 @@ export class QueryBuilderService<T extends BaseEntity> {
     entity: any,
     options: QueryBuilderOptions<T> = {},
   ): Promise<{ data: T[]; total: number }> {
-    const query = this.dataSource.getRepository(entity).createQueryBuilder("entity");
+    const query = this.dataSource
+      .getRepository(entity)
+      .createQueryBuilder("entity");
 
     if (options.select?.length) {
-      options.select.forEach((field) => query.addSelect(`entity.${String(field)}`));
+      options.select.forEach((field) =>
+        query.addSelect(`entity.${String(field)}`),
+      );
     }
 
     if (options.where) {
@@ -65,7 +79,9 @@ export class QueryBuilderService<T extends BaseEntity> {
         const param = field.replace(/\./g, "_");
         switch (filter.operator) {
           case "=":
-            query.andWhere(`entity.${field} = :${param}`, { [param]: filter.value });
+            query.andWhere(`entity.${field} = :${param}`, {
+              [param]: filter.value,
+            });
             break;
           case "LIKE":
             query.andWhere(`entity.${field} LIKE :${param}`, {
@@ -73,7 +89,9 @@ export class QueryBuilderService<T extends BaseEntity> {
             });
             break;
           case "IN":
-            query.andWhere(`entity.${field} IN (:...${param})`, { [param]: filter.value });
+            query.andWhere(`entity.${field} IN (:...${param})`, {
+              [param]: filter.value,
+            });
             break;
           case "IS NULL":
             query.andWhere(`entity.${field} IS NULL`);
@@ -82,7 +100,9 @@ export class QueryBuilderService<T extends BaseEntity> {
             query.andWhere(`entity.${field} IS NOT NULL`);
             break;
           default:
-            query.andWhere(`entity.${field} ${filter.operator} :${param}`, { [param]: filter.value });
+            query.andWhere(`entity.${field} ${filter.operator} :${param}`, {
+              [param]: filter.value,
+            });
         }
       });
     }
@@ -101,18 +121,26 @@ export class QueryBuilderService<T extends BaseEntity> {
     }
 
     if (options.groupBy?.length) {
-      options.groupBy.forEach((field) => query.addGroupBy(`entity.${String(field)}`));
+      options.groupBy.forEach((field) =>
+        query.addGroupBy(`entity.${String(field)}`),
+      );
     }
 
     if (options.having) {
       const param = String(options.having.field).replace(/\./g, "_");
-      query.having(`entity.${String(options.having.field)} ${options.having.operator} :${param}`, {
-        [param]: options.having.value,
-      });
+      query.having(
+        `entity.${String(options.having.field)} ${options.having.operator} :${param}`,
+        {
+          [param]: options.having.value,
+        },
+      );
     }
 
     if (options.orderBy) {
-      query.orderBy(`entity.${String(options.orderBy.field)}`, options.orderBy.direction);
+      query.orderBy(
+        `entity.${String(options.orderBy.field)}`,
+        options.orderBy.direction,
+      );
     }
 
     if (options.skip) query.skip(options.skip);
@@ -126,7 +154,9 @@ export class QueryBuilderService<T extends BaseEntity> {
     entity: any,
     options: QueryBuilderOptions<T> = {},
   ): Promise<T | null> {
-    const query = this.dataSource.getRepository(entity).createQueryBuilder("entity");
+    const query = this.dataSource
+      .getRepository(entity)
+      .createQueryBuilder("entity");
     if (options.where) {
       Object.entries(options.where).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -147,7 +177,9 @@ export class QueryBuilderService<T extends BaseEntity> {
     entity: any,
     options: QueryBuilderOptions<T> = {},
   ): Promise<number> {
-    const query = this.dataSource.getRepository(entity).createQueryBuilder("entity");
+    const query = this.dataSource
+      .getRepository(entity)
+      .createQueryBuilder("entity");
     if (options.where) {
       Object.entries(options.where).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -160,9 +192,13 @@ export class QueryBuilderService<T extends BaseEntity> {
         const field = String(filter.field);
         const param = field.replace(/\./g, "_");
         if (filter.operator === "IN") {
-          query.andWhere(`entity.${field} IN (:...${param})`, { [param]: filter.value });
+          query.andWhere(`entity.${field} IN (:...${param})`, {
+            [param]: filter.value,
+          });
         } else {
-          query.andWhere(`entity.${field} ${filter.operator} :${param}`, { [param]: filter.value });
+          query.andWhere(`entity.${field} ${filter.operator} :${param}`, {
+            [param]: filter.value,
+          });
         }
       });
     }
@@ -177,9 +213,7 @@ export class QueryBuilderService<T extends BaseEntity> {
     return this.dataSource.getRepository(entity).query(sql, parameters);
   }
 
-  async transaction<T>(
-    callback: (queryRunner: any) => Promise<T>,
-  ): Promise<T> {
+  async transaction<T>(callback: (queryRunner: any) => Promise<T>): Promise<T> {
     const queryRunner = this.dataSource.createQueryRunner();
     try {
       await queryRunner.connect();

@@ -62,7 +62,11 @@ export class SlowQueryLogger {
     this.recentQueries = [];
   }
 
-  getStats(): { total: number; avgExecutionTime: number; maxExecutionTime: number } {
+  getStats(): {
+    total: number;
+    avgExecutionTime: number;
+    maxExecutionTime: number;
+  } {
     if (this.recentQueries.length === 0) {
       return { total: 0, avgExecutionTime: 0, maxExecutionTime: 0 };
     }

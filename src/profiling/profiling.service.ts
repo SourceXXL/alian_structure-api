@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { Session } from "inspector";
 import { getHeapSnapshot, getHeapStatistics } from "v8";
 import { performance, PerformanceObserver } from "perf_hooks";
 import * as Sentry from "@sentry/node";
@@ -118,7 +119,6 @@ export class ProfilingService {
   async startCPUProfile(
     durationMs: number = 30000,
   ): Promise<{ profileId: string }> {
-    const { Session } = require("inspector").profiler;
     const session = new Session();
     session.connect();
 

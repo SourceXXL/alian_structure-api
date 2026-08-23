@@ -32,7 +32,10 @@ async function buildModule(
         },
       },
       SlowQueryLogger,
-      { provide: RetryService, useValue: { timeout: () => Promise.resolve(undefined) } },
+      {
+        provide: RetryService,
+        useValue: { timeout: () => Promise.resolve(undefined) },
+      },
       ...(overrides.providers ?? []),
     ],
   }).compile();
@@ -47,25 +50,35 @@ describe("ConnectionMonitorService", () => {
   describe("checkConnection", () => {
     it("returns healthy when query succeeds", async () => {
       const module = await buildModule();
-      const service = module.get<ConnectionMonitorService>(ConnectionMonitorService);
+      const service = module.get<ConnectionMonitorService>(
+        ConnectionMonitorService,
+      );
       const result = await service.checkConnection();
       expect(result.status).toBe("healthy");
       expect(result.responseTime).toBeGreaterThanOrEqual(0);
     });
 
     it("returns degraded on transient failure", async () => {
-      mockDataSource.query = jest.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+      mockDataSource.query = jest
+        .fn()
+        .mockRejectedValue(new Error("ECONNREFUSED"));
       const module = await buildModule();
-      const service = module.get<ConnectionMonitorService>(ConnectionMonitorService);
+      const service = module.get<ConnectionMonitorService>(
+        ConnectionMonitorService,
+      );
       const result = await service.checkConnection();
       expect(result.status).toBe("degraded");
       expect(result.consecutiveFailures).toBe(1);
     });
 
     it("returns unhealthy after repeated transient failures", async () => {
-      mockDataSource.query = jest.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+      mockDataSource.query = jest
+        .fn()
+        .mockRejectedValue(new Error("ECONNREFUSED"));
       const module = await buildModule();
-      const service = module.get<ConnectionMonitorService>(ConnectionMonitorService);
+      const service = module.get<ConnectionMonitorService>(
+        ConnectionMonitorService,
+      );
       await service.checkConnection();
       await service.checkConnection();
       await service.checkConnection();
@@ -79,7 +92,9 @@ describe("ConnectionMonitorService", () => {
       mockDataSource.initialize = jest.fn().mockResolvedValue(undefined);
       mockDataSource.query = jest.fn().mockResolvedValue([{ "?column?": 1 }]);
       const module = await buildModule();
-      const service = module.get<ConnectionMonitorService>(ConnectionMonitorService);
+      const service = module.get<ConnectionMonitorService>(
+        ConnectionMonitorService,
+      );
       const result = await service.reconnect();
       expect(result).toBe(true);
       expect(mockDataSource.destroy).toHaveBeenCalled();

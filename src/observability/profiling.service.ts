@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { createWriteStream, existsSync, mkdirSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { Session } from "inspector";
 import * as process from "process";
@@ -193,13 +193,10 @@ export class ProfilingService {
    * Get list of all available profiles
    */
   getAvailableProfiles(): string[] {
-    const fs = require("fs");
-    return fs
-      .readdirSync(this.profilesDir)
-      .filter(
-        (file: string) =>
-          file.endsWith(".cpuprofile") || file.endsWith(".heapsnapshot"),
-      );
+    return readdirSync(this.profilesDir).filter(
+      (file: string) =>
+        file.endsWith(".cpuprofile") || file.endsWith(".heapsnapshot"),
+    );
   }
 
   /**

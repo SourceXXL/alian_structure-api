@@ -130,7 +130,9 @@ export class MigrationService {
     }
   }
 
-  private async getAppliedMigrations(dataSource: DataSource): Promise<string[]> {
+  private async getAppliedMigrations(
+    dataSource: DataSource,
+  ): Promise<string[]> {
     const hasTable = await dataSource.query(
       `SELECT EXISTS (
         SELECT FROM information_schema.tables
@@ -149,7 +151,9 @@ export class MigrationService {
     return result.map((row: any) => row.name);
   }
 
-  private async getMigrationHistory(dataSource: DataSource): Promise<MigrationHistory[]> {
+  private async getMigrationHistory(
+    dataSource: DataSource,
+  ): Promise<MigrationHistory[]> {
     const hasTable = await dataSource.query(
       `SELECT EXISTS (
         SELECT FROM information_schema.tables

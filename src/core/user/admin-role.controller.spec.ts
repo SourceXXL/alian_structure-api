@@ -10,7 +10,9 @@ import { AdminTwoFactorGuard } from "src/core/auth/guards/admin-two-factor.guard
 
 describe("AdminRoleController", () => {
   let controller: AdminRoleController;
-  let userService: jest.Mocked<Pick<UserService, "assignRole" | "findOneOrFail">>;
+  let userService: jest.Mocked<
+    Pick<UserService, "assignRole" | "findOneOrFail">
+  >;
 
   const makeUser = (role: Role): User =>
     ({ id: "user-1", role }) as unknown as User;

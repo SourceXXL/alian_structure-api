@@ -54,7 +54,9 @@ export class AdminRoleController {
   @ApiOperation({ summary: "Get a user's current role" })
   @ApiResponse({ status: 200, description: "The user's current role" })
   @ApiResponse({ status: 404, description: "User not found" })
-  async getUserRole(@Param("id") id: string): Promise<{ id: string; role: Role }> {
+  async getUserRole(
+    @Param("id") id: string,
+  ): Promise<{ id: string; role: Role }> {
     const user = await this.userService.findOneOrFail(id);
     return { id: user.id, role: user.role };
   }

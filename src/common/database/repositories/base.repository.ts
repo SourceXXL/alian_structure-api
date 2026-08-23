@@ -19,7 +19,9 @@ export interface FindOptions {
   relations?: string[];
 }
 
-export abstract class BaseRepository<T extends BaseEntity> implements IBaseRepository<T> {
+export abstract class BaseRepository<
+  T extends BaseEntity,
+> implements IBaseRepository<T> {
   private readonly dataSource: DataSource;
   private readonly entityClass: new () => T;
 
@@ -54,7 +56,9 @@ export abstract class BaseRepository<T extends BaseEntity> implements IBaseRepos
     if (skip != null) query.skip(skip);
     if (take != null) query.take(take);
     if (relations?.length) {
-      relations.forEach((relation) => query.leftJoinAndSelect(`entity.${relation}`, relation));
+      relations.forEach((relation) =>
+        query.leftJoinAndSelect(`entity.${relation}`, relation),
+      );
     }
     return query.getMany();
   }

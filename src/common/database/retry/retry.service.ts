@@ -9,7 +9,12 @@ export interface RetryOptions {
   baseDelay: number;
   maxDelay: number;
   strategy: RetryStrategy;
-  backoff?: { type?: string; factor?: number; delay?: number; maxDelay?: number };
+  backoff?: {
+    type?: string;
+    factor?: number;
+    delay?: number;
+    maxDelay?: number;
+  };
   shouldRetry?: (error: any) => boolean;
 }
 
@@ -45,7 +50,13 @@ export function retry<T>(
       if (!shouldRetry) {
         throw error;
       }
-      const delay = calculateDelay(resolvedStrategy, attemptIndex, resolvedBaseDelay, resolvedFactor, resolvedMaxDelay);
+      const delay = calculateDelay(
+        resolvedStrategy,
+        attemptIndex,
+        resolvedBaseDelay,
+        resolvedFactor,
+        resolvedMaxDelay,
+      );
       await sleep(delay);
       return tryExecute(attemptIndex + 1);
     }

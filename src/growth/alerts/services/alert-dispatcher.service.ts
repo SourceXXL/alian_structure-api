@@ -208,7 +208,9 @@ export class AlertDispatcherService {
           } as any);
           this.logger.log(`[Email] Queued alert email for user ${userId}`);
         } else {
-          this.logger.warn(`[Email] EmailService unavailable for user ${userId}`);
+          this.logger.warn(
+            `[Email] EmailService unavailable for user ${userId}`,
+          );
         }
       } else if (channel === "websocket") {
         if (this.dashboardGateway) {
@@ -219,7 +221,9 @@ export class AlertDispatcherService {
           );
           this.logger.log(`[WebSocket] Pushed alert to user ${userId}`);
         } else {
-          this.logger.warn(`[WebSocket] DashboardGateway unavailable for user ${userId}`);
+          this.logger.warn(
+            `[WebSocket] DashboardGateway unavailable for user ${userId}`,
+          );
         }
       } else if (channel === "push") {
         if (this.pushService) {
@@ -232,7 +236,9 @@ export class AlertDispatcherService {
           });
           this.logger.log(`[Push] Sent push notification to user ${userId}`);
         } else {
-          this.logger.warn(`[Push] PushNotificationService unavailable for user ${userId}`);
+          this.logger.warn(
+            `[Push] PushNotificationService unavailable for user ${userId}`,
+          );
         }
       } else {
         this.logger.warn(`[Dispatcher] Unknown channel: ${channel}`);

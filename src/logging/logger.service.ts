@@ -14,7 +14,11 @@
  * ```
  */
 
-import { Injectable, LoggerService as NestLoggerService, Optional } from "@nestjs/common";
+import {
+  Injectable,
+  LoggerService as NestLoggerService,
+  Optional,
+} from "@nestjs/common";
 import * as winston from "winston";
 import {
   createWinstonLogger,
@@ -52,9 +56,7 @@ export class LoggerService implements NestLoggerService {
   private readonly winston: winston.Logger;
   private readonly _context: string | undefined;
 
-  constructor(
-    @Optional() private readonly opts: LoggerModuleOptions = {},
-  ) {
+  constructor(@Optional() private readonly opts: LoggerModuleOptions = {}) {
     this.winston = createWinstonLogger(opts);
   }
 
@@ -88,11 +90,17 @@ export class LoggerService implements NestLoggerService {
   // Extended structured API
   // -------------------------------------------------------------------------
 
-  info(entry: StructuredLogEntry | string, meta?: Record<string, unknown>): void {
+  info(
+    entry: StructuredLogEntry | string,
+    meta?: Record<string, unknown>,
+  ): void {
     this._log("info", this.normalise(entry, meta));
   }
 
-  fatal(entry: StructuredLogEntry | string, meta?: Record<string, unknown>): void {
+  fatal(
+    entry: StructuredLogEntry | string,
+    meta?: Record<string, unknown>,
+  ): void {
     this._log("fatal", this.normalise(entry, meta));
   }
 
@@ -152,7 +160,10 @@ export class LoggerService implements NestLoggerService {
    */
   private _log(level: LogLevel, entry: Record<string, unknown>): void {
     const { message, ...meta } = entry;
-    this.winston[level](String(message), sanitizeObject(meta as Record<string, unknown>));
+    this.winston[level](
+      String(message),
+      sanitizeObject(meta as Record<string, unknown>),
+    );
   }
 
   /** Converts a Nest-style `(message, context)` pair into a {@link StructuredLogEntry}. */
@@ -230,12 +241,18 @@ export class ScopedLoggerService implements NestLoggerService {
     this.parent.verbose(message, this.context);
   }
 
-  info(entry: StructuredLogEntry | string, meta?: Record<string, unknown>): void {
+  info(
+    entry: StructuredLogEntry | string,
+    meta?: Record<string, unknown>,
+  ): void {
     const e = typeof entry === "string" ? { message: entry } : entry;
     this.parent.info({ ...e, context: this.context }, meta);
   }
 
-  fatal(entry: StructuredLogEntry | string, meta?: Record<string, unknown>): void {
+  fatal(
+    entry: StructuredLogEntry | string,
+    meta?: Record<string, unknown>,
+  ): void {
     const e = typeof entry === "string" ? { message: entry } : entry;
     this.parent.fatal({ ...e, context: this.context }, meta);
   }

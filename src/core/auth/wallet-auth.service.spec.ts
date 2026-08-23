@@ -17,6 +17,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { verifyMessage as mockVerifyMessage } from "ethers";
+
 // Mock ethers
 jest.mock("ethers", () => ({
   verifyMessage: jest.fn(),
@@ -156,7 +158,7 @@ describe("WalletAuthService", () => {
     mockWalletRepository.find.mockResolvedValue([mockWallet]);
 
     // Get the mocked verifyMessage
-    verifyMessage = require("ethers").verifyMessage;
+    verifyMessage = mockVerifyMessage as jest.Mock;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

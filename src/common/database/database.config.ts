@@ -36,7 +36,8 @@ export class DatabaseConfigService {
   private readonly environment: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.environment = this.configService.get<string>("NODE_ENV") ?? "development";
+    this.environment =
+      this.configService.get<string>("NODE_ENV") ?? "development";
   }
 
   getConnectionOptions(): DatabaseConfig {
@@ -70,9 +71,7 @@ export class DatabaseConfigService {
     } as DataSourceOptions;
   }
 
-  private getLoggingLevel(
-    logging?: boolean | string[],
-  ): boolean | string[] {
+  private getLoggingLevel(logging?: boolean | string[]): boolean | string[] {
     if (this.environment === "production") {
       return ["error", "warn", "migration", "query-slow"];
     }

@@ -46,7 +46,7 @@ export class CreatePortfolioDto {
   @IsNumber()
   rebalanceThreshold?: number;
 
-  @ApiPropertyOptional({ example: { "BTC": 50, "ETH": 50 } })
+  @ApiPropertyOptional({ example: { BTC: 50, ETH: 50 } })
   @IsOptional()
   @IsJSON()
   initialAllocation?: Record<string, number>;

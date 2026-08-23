@@ -18,7 +18,9 @@ function makeMockDataSource(): any {
   };
 }
 
-async function buildModule(dataSource: any = makeMockDataSource()): Promise<TestingModule> {
+async function buildModule(
+  dataSource: any = makeMockDataSource(),
+): Promise<TestingModule> {
   return Test.createTestingModule({
     providers: [
       MigrationService,

@@ -11,7 +11,11 @@ export class SnakeNamingStrategy implements NamingStrategyInterface {
     return `${this.pascalToSnake(originalClosureTableName, true)}_closure`;
   }
 
-  columnName(propertyName: string, customName: string | undefined, embeddedPrefixes: string[]): string {
+  columnName(
+    propertyName: string,
+    customName: string | undefined,
+    embeddedPrefixes: string[],
+  ): string {
     const prefix = embeddedPrefixes.length
       ? embeddedPrefixes.map((p) => this.pascalToSnake(p)).join("_") + "_"
       : "";
@@ -23,51 +27,99 @@ export class SnakeNamingStrategy implements NamingStrategyInterface {
   }
 
   primaryKeyName(tableOrName: any, columnNames: string[]): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_${columnNames.join("_")}_pk`;
   }
 
   uniqueConstraintName(tableOrName: any, columnNames: string[]): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_${columnNames.join("_")}_unique`;
   }
 
-  relationConstraintName(tableOrName: any, columnNames: string[], where?: string): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+  relationConstraintName(
+    tableOrName: any,
+    columnNames: string[],
+    where?: string,
+  ): string {
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_${columnNames.join("_")}_rel`;
   }
 
   defaultConstraintName(tableOrName: any, columnName: string): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_${this.pascalToSnake(columnName)}_default`;
   }
 
-  foreignKeyName(tableOrName: any, columnNames: string[], referencedTablePath?: string, referencedColumnNames?: string[]): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
-    const ref = referencedTablePath ? this.pascalToSnake(referencedTablePath) : "unknown";
+  foreignKeyName(
+    tableOrName: any,
+    columnNames: string[],
+    referencedTablePath?: string,
+    referencedColumnNames?: string[],
+  ): string {
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
+    const ref = referencedTablePath
+      ? this.pascalToSnake(referencedTablePath)
+      : "unknown";
     return `${this.pascalToSnake(table)}_${columnNames.join("_")}_${ref}_fk`;
   }
 
   indexName(tableOrName: any, columns: string[], where?: string): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_${columns.join("_")}_idx`;
   }
 
-  checkConstraintName(tableOrName: any, expression: string, isEnum?: boolean): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+  checkConstraintName(
+    tableOrName: any,
+    expression: string,
+    isEnum?: boolean,
+  ): string {
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_check`;
   }
 
   exclusionConstraintName(tableOrName: any, expression: string): string {
-    const table = typeof tableOrName === "string" ? tableOrName : tableOrName?.name ?? "table";
+    const table =
+      typeof tableOrName === "string"
+        ? tableOrName
+        : (tableOrName?.name ?? "table");
     return `${this.pascalToSnake(table)}_exclude`;
   }
 
   joinColumnName(relationName: string, referencedColumnName: string): string {
-    return this.pascalToSnake(relationName) + "_" + this.pascalToSnake(referencedColumnName);
+    return (
+      this.pascalToSnake(relationName) +
+      "_" +
+      this.pascalToSnake(referencedColumnName)
+    );
   }
 
-  joinTableName(firstTableName: string, secondTableName: string, firstPropertyName: string, secondPropertyName: string): string {
+  joinTableName(
+    firstTableName: string,
+    secondTableName: string,
+    firstPropertyName: string,
+    secondPropertyName: string,
+  ): string {
     return [
       this.pascalToSnake("join_" + firstTableName + "_" + firstPropertyName),
       this.pascalToSnake(secondPropertyName + "_" + secondTableName),
@@ -78,11 +130,19 @@ export class SnakeNamingStrategy implements NamingStrategyInterface {
     return `${this.pascalToSnake(columnName)}${index}`;
   }
 
-  joinTableColumnName(tableName: string, propertyName: string, columnName?: string): string {
+  joinTableColumnName(
+    tableName: string,
+    propertyName: string,
+    columnName?: string,
+  ): string {
     return `${this.pascalToSnake(columnName || propertyName)}`;
   }
 
-  joinTableInverseColumnName(tableName: string, propertyName: string, columnName?: string): string {
+  joinTableInverseColumnName(
+    tableName: string,
+    propertyName: string,
+    columnName?: string,
+  ): string {
     return `${this.pascalToSnake(columnName || propertyName)}`;
   }
 

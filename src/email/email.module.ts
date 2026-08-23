@@ -21,13 +21,25 @@ import { SesEmailProvider } from "./providers/ses-email.provider";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        redis: { host: configService.get<string>("REDIS_HOST", "localhost"), port: configService.get<number>("REDIS_PORT", 6379), password: configService.get<string>("REDIS_PASSWORD") },
+        redis: {
+          host: configService.get<string>("REDIS_HOST", "localhost"),
+          port: configService.get<number>("REDIS_PORT", 6379),
+          password: configService.get<string>("REDIS_PASSWORD"),
+        },
         defaultJobOptions: { removeOnComplete: 100, removeOnFail: 500 },
       }),
     }),
   ],
   controllers: [EmailController],
-  providers: [EmailService, EmailQueueService, EmailProcessor, TemplateEngineService, SmtpEmailProvider, SendgridEmailProvider, SesEmailProvider],
+  providers: [
+    EmailService,
+    EmailQueueService,
+    EmailProcessor,
+    TemplateEngineService,
+    SmtpEmailProvider,
+    SendgridEmailProvider,
+    SesEmailProvider,
+  ],
   exports: [EmailService, TemplateEngineService],
 })
 export class EmailModule {}

@@ -37,7 +37,12 @@ export class HealthCheckService {
         this.dataSource.query("SELECT 1"),
         new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error(`Health check timed out after ${options.timeoutMs ?? this.defaultTimeout}ms`)),
+            () =>
+              reject(
+                new Error(
+                  `Health check timed out after ${options.timeoutMs ?? this.defaultTimeout}ms`,
+                ),
+              ),
             options.timeoutMs ?? this.defaultTimeout,
           ),
         ),

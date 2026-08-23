@@ -15,7 +15,10 @@ export interface EmailAttachment {
   cid?: string;
 }
 
-export interface SendEmailResult { messageId: string; provider: string; }
+export interface SendEmailResult {
+  messageId: string;
+  provider: string;
+}
 
 export interface EmailProvider {
   sendEmail(options: SendEmailOptions): Promise<SendEmailResult>;

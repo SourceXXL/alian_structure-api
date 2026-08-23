@@ -7,11 +7,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DataSource, DataSourceOptions } from "typeorm";
-import {
-  retry,
-  RetryStrategy,
-  ConnectionError,
-} from "./retry/retry.service";
+import { retry, RetryStrategy, ConnectionError } from "./retry/retry.service";
 import { DatabaseConfigService } from "./database.config";
 import { SlowQueryLogger } from "./observability/slow-query.logger";
 
@@ -62,7 +58,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     baseDelay = 1000,
     maxDelay = 30000,
   ): Promise<void> {
-    this.logger.log(`Initializing database connection (max retries: ${maxRetries})`);
+    this.logger.log(
+      `Initializing database connection (max retries: ${maxRetries})`,
+    );
 
     try {
       await retry(
@@ -82,8 +80,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       this.logger.log("Database connection initialized successfully");
     } catch (error) {
-      this.logger.error(`Database connection failed after ${maxRetries} retries`, error);
-      throw new Error(`Unable to establish database connection: ${error.message}`);
+      this.logger.error(
+        `Database connection failed after ${maxRetries} retries`,
+        error,
+      );
+      throw new Error(
+        `Unable to establish database connection: ${error.message}`,
+      );
     }
   }
 
@@ -203,7 +206,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   private isTransientError(error: any): boolean {
     if (!error) return false;
-    const transientCodes = ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "ETIMEDOUT"];
+    const transientCodes = [
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ENOTFOUND",
+      "ETIMEDOUT",
+    ];
     const message = error.message ?? error.code ?? "";
     return transientCodes.some((code) => message.includes(code));
   }
