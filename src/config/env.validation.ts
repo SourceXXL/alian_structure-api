@@ -569,6 +569,40 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   GRANTFOX_API_KEY?: string;
+
+  // Grantfox OAuth2 SSO (PKCE flow)
+  @IsOptional()
+  @IsString()
+  GRANTFOX_CLIENT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  GRANTFOX_CLIENT_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  GRANTFOX_AUTHORIZATION_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  GRANTFOX_TOKEN_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  GRANTFOX_USERINFO_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  GRANTFOX_REVOKE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  GRANTFOX_REDIRECT_URI?: string;
+
+  /** 32-byte hex key for AES-256-GCM encryption of refresh tokens at rest. */
+  @IsOptional()
+  @IsString()
+  GRANTFOX_ENCRYPTION_KEY?: string;
   // Rate Limiting & Abuse Protection (distributed, Redis-backed)
 
   /** Redis key prefix for rate-limit entries. Default: "alian:rl:". */

@@ -1,5 +1,8 @@
 import { SocialAccount } from "./entities/social-account.entity";
+import { GrantfoxToken } from "./entities/grantfox-token.entity";
 import { OAuthController } from "./oauth.controller";
+import { GrantfoxController } from "./grantfox.controller";
+import { GrantfoxOAuthService } from "./services/grantfox-oauth.service";
 import { AuditLogService } from "src/infrastructure/audit/audit-log.service";
 import { Module, OnModuleInit } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
@@ -78,10 +81,11 @@ import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
       RefreshToken,
       TwoFactorAuth,
       SocialAccount,
+      GrantfoxToken,
     ]),
     AuditModule,
   ],
-  controllers: [AuthController, OAuthController],
+  controllers: [AuthController, OAuthController, GrantfoxController],
   providers: [
     // Legacy services (for backward compatibility)
     AuthService,
@@ -107,6 +111,7 @@ import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
     StrategyAuthGuard,
     AdminTwoFactorGuard,
     AuditLogService,
+    GrantfoxOAuthService,
   ],
   exports: [
     // Legacy exports
@@ -128,6 +133,7 @@ import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
     OAuthStrategy,
     ApiKeyStrategy,
     StrategyAuthGuard,
+    GrantfoxOAuthService,
   ],
 })
 export class AuthModule implements OnModuleInit {
