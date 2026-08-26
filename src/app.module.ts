@@ -144,6 +144,8 @@ import { GraphqlGatewayModule } from "./graphql/graphql.module";
 import { ModuleRegistryModule } from "./modules/registry/module-registry.module";
 import { ModuleEntity } from "./modules/registry/entities/module.entity";
 import { TenantModuleState } from "./modules/registry/entities/tenant-module-state.entity";
+// Grantfox OAuth entity
+import { GrantfoxToken } from "./core/auth/entities/grantfox-token.entity";
 
 @Module({
   imports: [
@@ -236,6 +238,7 @@ import { TenantModuleState } from "./modules/registry/entities/tenant-module-sta
             NotificationAggregation,
             NotificationDeliveryLog,
             NotificationAnalytics,
+            GrantfoxToken,
           ],
           synchronize: true,
           logging: true,

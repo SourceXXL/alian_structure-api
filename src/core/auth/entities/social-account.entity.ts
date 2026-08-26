@@ -15,6 +15,7 @@ export enum SocialProvider {
   GOOGLE = "google",
   GITHUB = "github",
   TWITTER = "twitter",
+  GRANTFOX = "grantfox",
 }
 
 @Entity("social_accounts")
