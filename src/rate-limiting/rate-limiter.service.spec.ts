@@ -16,6 +16,11 @@ function makeMockRedis() {
     }),
     ping: jest.fn(async () => "PONG"),
     hgetall: jest.fn(async () => ({ tokens: "5", ts: "1000" })),
+    hset: jest.fn(async () => 1),
+    hdel: jest.fn(async () => 1),
+    lpush: jest.fn(async () => 1),
+    ltrim: jest.fn(async () => "OK"),
+    lrange: jest.fn(async () => []),
     zcount: jest.fn(async () => 2),
     del: jest.fn(async () => 1),
     psetex: jest.fn(async () => "OK"),
@@ -189,6 +194,113 @@ describe("RateLimiterService", () => {
           "f",
         );
         expect(decision.allowed).toBe(true);
+      });
+    });
+
+    describe("whitelist and blacklist management", () => {
+      it("adds and checks whitelisted IP and user", async () => {
+        await service.addWhitelist({
+          type: "ip",
+          value: "192.168.1.100",
+          reason: "internal",
+        });
+        await service.addWhitelist({
+          type: "user",
+          value: "admin-user",
+          reason: "vip",
+        });
+
+        expect(await service.isWhitelisted("192.168.1.100")).toBe(true);
+        expect(await service.isWhitelisted("10.0.0.1")).toBe(false);
+        expect(await service.isWhitelisted(undefined, "admin-user")).toBe(true);
+        expect(await service.isWhitelisted(undefined, "regular-user")).toBe(false);
+      });
+
+      it("supports wildcard IP and path patterns in whitelist", async () => {
+        await service.addWhitelist({ type: "ip", value: "10.0.*" });
+        await service.addWhitelist({ type: "path", value: "/health*" });
+
+        expect(await service.isWhitelisted("10.0.1.5")).toBe(true);
+        expect(await service.isWhitelisted("192.168.1.1")).toBe(false);
+        expect(await service.isWhitelisted(undefined, undefined, undefined, "/health/ready")).toBe(true);
+      });
+
+      it("removes from whitelist", async () => {
+        await service.addWhitelist({ type: "ip", value: "127.0.0.1" });
+        expect(await service.isWhitelisted("127.0.0.1")).toBe(true);
+
+        await service.removeWhitelist("127.0.0.1");
+        expect(await service.isWhitelisted("127.0.0.1")).toBe(false);
+      });
+
+      it("adds and checks blacklisted IP and user", async () => {
+        await service.addBlacklist({
+          type: "ip",
+          value: "198.51.100.23",
+          reason: "ddos attacker",
+        });
+
+        expect(await service.isBlacklisted("198.51.100.23")).toBe(true);
+        expect(await service.isBlacklisted("8.8.8.8")).toBe(false);
+
+        await service.removeBlacklist("198.51.100.23");
+        expect(await service.isBlacklisted("198.51.100.23")).toBe(false);
+      });
+    });
+
+    describe("violations and analytics", () => {
+      it("records violations and computes analytics", async () => {
+        await service.recordViolation({
+          ip: "1.2.3.4",
+          tracker: "ip:1.2.3.4",
+          route: "/api/v1/auth/login",
+          method: "POST",
+          tier: "free",
+          strategy: RateLimitStrategy.TokenBucket,
+          limit: 5,
+          reason: "rate_limit_exceeded",
+        });
+
+        await service.recordViolation({
+          ip: "1.2.3.4",
+          tracker: "ip:1.2.3.4",
+          route: "/api/v1/auth/login",
+          method: "POST",
+          tier: "free",
+          strategy: RateLimitStrategy.TokenBucket,
+          limit: 5,
+          reason: "rate_limit_exceeded",
+        });
+
+        const violations = await service.getViolations();
+        expect(violations.length).toBe(2);
+        expect(violations[0].ip).toBe("1.2.3.4");
+
+        const analytics = await service.getAnalytics();
+        expect(analytics.totalViolations).toBe(2);
+        expect(analytics.uniqueViolators).toBe(1);
+        expect(analytics.topViolators[0].tracker).toBe("ip:1.2.3.4");
+        expect(analytics.topRoutes[0].route).toBe("/api/v1/auth/login");
+      });
+    });
+
+    describe("endpoint rule configuration", () => {
+      it("stores and resolves custom endpoint rules", () => {
+        service.addEndpointRule({
+          pathPattern: "/api/v1/heavy*",
+          method: "POST",
+          limit: 5,
+          windowMs: 60000,
+          strategy: RateLimitStrategy.SlidingWindow,
+        });
+
+        const rule = service.getEndpointRule("/api/v1/heavy-computation", "POST");
+        expect(rule).toBeDefined();
+        expect(rule?.limit).toBe(5);
+        expect(rule?.strategy).toBe(RateLimitStrategy.SlidingWindow);
+
+        const noMatch = service.getEndpointRule("/api/v1/heavy-computation", "GET");
+        expect(noMatch).toBeUndefined();
       });
     });
 
@@ -396,7 +508,6 @@ describe("RateLimiterService", () => {
       );
       expect(decision.allowed).toBe(true);
 
-      // Sliding window stores entries as arrays, token bucket stores as buckets
       const memWindows = (service as any).memoryWindows;
       expect(memWindows.has("alian:rl:default-strategy:g:f")).toBe(true);
     });

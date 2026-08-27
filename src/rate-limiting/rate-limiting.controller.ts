@@ -16,7 +16,14 @@ import { Public } from "../common/decorators/public.decorator";
 import { SkipKyc } from "../common/decorators/skip-kyc.decorator";
 import { RateLimiterService } from "./rate-limiter.service";
 import { RateLimitStorage } from "./interfaces";
-import { SetRateLimitDto, RateLimitStatusDto } from "./dto/rate-limit-dto";
+import {
+  AddBlacklistDto,
+  AddEndpointRuleDto,
+  AddWhitelistDto,
+  RateLimitStatusDto,
+  SetRateLimitDto,
+  ViolationQueryDto,
+} from "./dto/rate-limit-dto";
 import { register } from "../config/metrics";
 
 const DENIED_METRIC = "alian_structure_rate_limit_denied_total";
@@ -32,10 +39,10 @@ export class RateLimitingController {
 
   @Get("dashboard")
   @ApiOperation({
-    summary: "Rate-limiting dashboard for Grant reviewers",
+    summary: "Rate-limiting dashboard for administrators and reviewers",
     description:
       "Aggregated usage and impact metrics for rate-limiting — quotas, " +
-      "blocked requests, active strategies, and storage health.",
+      "blocked requests, active strategies, storage health, whitelist/blacklist stats, and violations.",
   })
   @ApiResponse({ status: 200, description: "Dashboard snapshot" })
   async getDashboard(@Req() req: Request) {
@@ -46,6 +53,9 @@ export class RateLimitingController {
     const denied = await this.getMetricValue(DENIED_METRIC);
     const allowed = await this.getMetricValue(ALLOWED_METRIC);
     const errors = await this.getMetricValue(ERRORS_METRIC);
+    const whitelist = await this.rateLimiter.listWhitelist();
+    const blacklist = await this.rateLimiter.listBlacklist();
+    const analytics = await this.rateLimiter.getAnalytics(3600_000);
 
     const deniedByTier: Record<string, number> = {};
     for (const entry of entries) {
@@ -82,6 +92,14 @@ export class RateLimitingController {
       strategyDistribution: strategyCounts,
       activeEntries: entries.length,
       topEntries: entries.slice(0, 20),
+      whitelistCount: whitelist.length,
+      blacklistCount: blacklist.length,
+      recentViolationsCount: analytics.totalViolations,
+      analyticsSummary: {
+        uniqueViolators: analytics.uniqueViolators,
+        topViolators: analytics.topViolators,
+        topRoutes: analytics.topRoutes,
+      },
     };
   }
 
@@ -142,8 +160,7 @@ export class RateLimitingController {
   @ApiOperation({
     summary: "Set a custom rate-limit entry (for testing/bypass)",
     description:
-      "Manually create or update a rate-limit configuration for a specific key. " +
-      "Useful for Grant reviewers to grant temporary quota adjustments.",
+      "Manually create or update a rate-limit configuration for a specific key.",
   })
   @ApiResponse({ status: 201, description: "Entry created" })
   async setEntry(@Req() req: Request, @Body() body: SetRateLimitDto) {
@@ -176,8 +193,7 @@ export class RateLimitingController {
   @ApiOperation({
     summary: "Reset a rate-limit entry",
     description:
-      "Reset (clear) the rate-limit counter for a specific tracker/scope/tier " +
-      "combination. Grant reviewers use this to unblock throttled keys.",
+      "Reset (clear) the rate-limit counter for a specific tracker/scope/tier combination.",
   })
   @ApiResponse({ status: 200, description: "Reset result" })
   async resetEntry(
@@ -211,6 +227,173 @@ export class RateLimitingController {
     this.assertAuthorized(req);
     return this.rateLimiter.getStorageHealth();
   }
+
+  // ==========================================
+  // Whitelist Management Endpoints
+  // ==========================================
+
+  @Get("whitelist")
+  @ApiOperation({
+    summary: "List whitelisted clients and routes",
+    description:
+      "Returns all actively whitelisted IP addresses, users, keys, and paths that bypass rate limiting.",
+  })
+  @ApiResponse({ status: 200, description: "List of whitelisted entries" })
+  async getWhitelist(@Req() req: Request) {
+    this.assertAuthorized(req);
+    const list = await this.rateLimiter.listWhitelist();
+    return { count: list.length, items: list };
+  }
+
+  @Post("whitelist")
+  @ApiOperation({
+    summary: "Add client or route to whitelist",
+    description:
+      "Adds an IP, User ID, API Key, or Path pattern to the whitelist to bypass rate limiting.",
+  })
+  @ApiResponse({ status: 201, description: "Whitelist entry created" })
+  async addWhitelist(@Req() req: Request, @Body() body: AddWhitelistDto) {
+    this.assertAuthorized(req);
+    const item = await this.rateLimiter.addWhitelist(body);
+    return { message: "Added to whitelist", item };
+  }
+
+  @Delete("whitelist/:value")
+  @ApiOperation({
+    summary: "Remove from whitelist",
+    description: "Removes an identifier from the whitelist.",
+  })
+  @ApiResponse({ status: 200, description: "Whitelist entry removed" })
+  async removeWhitelist(@Req() req: Request, @Param("value") value: string) {
+    this.assertAuthorized(req);
+    const removed = await this.rateLimiter.removeWhitelist(value);
+    return {
+      value,
+      removed,
+      message: removed
+        ? `Removed "${value}" from whitelist`
+        : `"${value}" was not found in whitelist`,
+    };
+  }
+
+  // ==========================================
+  // Blacklist Management Endpoints
+  // ==========================================
+
+  @Get("blacklist")
+  @ApiOperation({
+    summary: "List blacklisted clients",
+    description:
+      "Returns all actively blacklisted IP addresses, users, and keys that are blocked from making requests.",
+  })
+  @ApiResponse({ status: 200, description: "List of blacklisted entries" })
+  async getBlacklist(@Req() req: Request) {
+    this.assertAuthorized(req);
+    const list = await this.rateLimiter.listBlacklist();
+    return { count: list.length, items: list };
+  }
+
+  @Post("blacklist")
+  @ApiOperation({
+    summary: "Add client to blacklist",
+    description:
+      "Adds an IP, User ID, or API Key to the blacklist to immediately block requests.",
+  })
+  @ApiResponse({ status: 201, description: "Blacklist entry created" })
+  async addBlacklist(@Req() req: Request, @Body() body: AddBlacklistDto) {
+    this.assertAuthorized(req);
+    const item = await this.rateLimiter.addBlacklist(body);
+    return { message: "Added to blacklist", item };
+  }
+
+  @Delete("blacklist/:value")
+  @ApiOperation({
+    summary: "Remove from blacklist",
+    description: "Removes an identifier from the blacklist.",
+  })
+  @ApiResponse({ status: 200, description: "Blacklist entry removed" })
+  async removeBlacklist(@Req() req: Request, @Param("value") value: string) {
+    this.assertAuthorized(req);
+    const removed = await this.rateLimiter.removeBlacklist(value);
+    return {
+      value,
+      removed,
+      message: removed
+        ? `Removed "${value}" from blacklist`
+        : `"${value}" was not found in blacklist`,
+    };
+  }
+
+  // ==========================================
+  // Violations & Analytics Endpoints
+  // ==========================================
+
+  @Get("violations")
+  @ApiOperation({
+    summary: "Query rate limit violation logs",
+    description:
+      "Returns recorded rate limit violations with filtering by tracker, IP, route, and time window.",
+  })
+  @ApiResponse({ status: 200, description: "List of recorded violations" })
+  async getViolations(
+    @Req() req: Request,
+    @Query("tracker") tracker?: string,
+    @Query("ip") ip?: string,
+    @Query("userId") userId?: string,
+    @Query("route") route?: string,
+    @Query("limit") limit?: string,
+    @Query("since") since?: string,
+  ) {
+    this.assertAuthorized(req);
+
+    const query: ViolationQueryDto = {
+      tracker,
+      ip,
+      userId,
+      route,
+      limit: limit ? Number(limit) : 100,
+      since: since ? Number(since) : undefined,
+    };
+
+    const violations = await this.rateLimiter.getViolations(query);
+    return {
+      count: violations.length,
+      violations,
+    };
+  }
+
+  @Get("analytics")
+  @ApiOperation({
+    summary: "Aggregated rate limit analytics and trends",
+    description:
+      "Returns violation metrics aggregated by offender, route, tier, strategy, and time series trends.",
+  })
+  @ApiResponse({ status: 200, description: "Analytics snapshot" })
+  async getAnalytics(
+    @Req() req: Request,
+    @Query("windowMs") windowMs?: string,
+  ) {
+    this.assertAuthorized(req);
+    const window = windowMs ? Number(windowMs) : 3600_000;
+    const analytics = await this.rateLimiter.getAnalytics(window);
+    return analytics;
+  }
+
+  @Post("rules")
+  @ApiOperation({
+    summary: "Add custom endpoint rate limit rule",
+    description: "Configures custom rate limiting policy for a specific path pattern.",
+  })
+  @ApiResponse({ status: 201, description: "Rule added" })
+  async addEndpointRule(@Req() req: Request, @Body() body: AddEndpointRuleDto) {
+    this.assertAuthorized(req);
+    this.rateLimiter.addEndpointRule(body);
+    return { message: "Endpoint rule configured", rule: body };
+  }
+
+  // ==========================================
+  // Helper Authorization
+  // ==========================================
 
   private async getMetricValue(metricName: string): Promise<number> {
     const metrics = await register.getMetricsAsJSON();
