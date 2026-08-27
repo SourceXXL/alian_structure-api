@@ -2,11 +2,16 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import Redis from "ioredis";
 import { CACHE_REDIS_CLIENT } from "../common/cache/cache.constants";
 import {
+  BlacklistEntry,
+  EndpointRateLimitRule,
+  RateLimitAnalytics,
   RateLimitDecision,
-  RateLimitPolicy,
   RateLimitEntry,
+  RateLimitPolicy,
   RateLimitStorage,
   RateLimitStrategy,
+  RateLimitViolation,
+  WhitelistEntry,
 } from "./interfaces";
 import {
   rateLimitErrorsTotal,
@@ -97,6 +102,13 @@ interface MemoryEntry {
   lastRemaining: number;
 }
 
+export interface RateLimitConfig {
+  keyPrefix?: string;
+  defaultStrategy?: RateLimitStrategy;
+  enableFallback?: boolean;
+  endpointRules?: EndpointRateLimitRule[];
+}
+
 @Injectable()
 export class RateLimiterService {
   private readonly logger = new Logger(RateLimiterService.name);
@@ -107,24 +119,39 @@ export class RateLimiterService {
   private readonly keyPrefix: string;
   private readonly defaultStrategy: RateLimitStrategy;
   private readonly enableFallback: boolean;
+
+  // In-memory collections
+  private readonly memoryWhitelist = new Map<string, WhitelistEntry>();
+  private readonly memoryBlacklist = new Map<string, BlacklistEntry>();
+  private readonly memoryViolations: RateLimitViolation[] = [];
+  private readonly endpointRules: EndpointRateLimitRule[] = [];
+
   private lastRedisCheck = 0;
   private redisHealthy = false;
 
   constructor(
     @Optional() @Inject(CACHE_REDIS_CLIENT) redis: Redis | null,
-    @Inject("RATE_LIMIT_CONFIG") config?: RateLimitConfig,
+    @Optional() @Inject("RATE_LIMIT_CONFIG") config?: RateLimitConfig,
   ) {
     this.redis = redis;
     this.keyPrefix = config?.keyPrefix ?? "alian:rl:";
     this.defaultStrategy =
       config?.defaultStrategy ?? RateLimitStrategy.TokenBucket;
     this.enableFallback = config?.enableFallback ?? true;
+
+    if (config?.endpointRules) {
+      this.endpointRules.push(...config.endpointRules);
+    }
   }
+
+  // ==========================================
+  // Core Rate Limit Consumption
+  // ==========================================
 
   async consume(
     key: string,
     policy: Partial<RateLimitPolicy>,
-    tracker?: string,
+    tracker?: string | null,
     scope?: string,
     tier?: string,
   ): Promise<RateLimitDecision> {
@@ -145,7 +172,14 @@ export class RateLimiterService {
       decision = await this.consumeMemory(storageKey, resolvedPolicy);
     }
 
-    this.updateRegistry(key, tracker, scope, tier, resolvedPolicy, decision);
+    this.updateRegistry(
+      key,
+      tracker ?? undefined,
+      scope,
+      tier,
+      resolvedPolicy,
+      decision,
+    );
 
     return decision;
   }
@@ -204,10 +238,10 @@ export class RateLimiterService {
         resetAt,
         retryAfterMs: retryAfterMs > 0 ? retryAfterMs : undefined,
       };
-    } catch (err) {
+    } catch (err: any) {
       rateLimitErrorsTotal.inc({ operation: "consume", storage: "redis" });
       this.logger.warn(
-        { error: err.message, key },
+        { error: err?.message, key },
         "Redis rate-limit consume failed, falling back to memory",
       );
       return this.consumeMemory(key, policy);
@@ -298,7 +332,7 @@ export class RateLimiterService {
       };
     }
 
-    const oldest = entries[0];
+    const oldest = entries[0] ?? now;
     const retryAfterMs = Math.max(0, oldest + policy.windowMs - now);
     return {
       allowed: false,
@@ -307,6 +341,419 @@ export class RateLimiterService {
       retryAfterMs,
     };
   }
+
+  // ==========================================
+  // Whitelist & Blacklist Management
+  // ==========================================
+
+  async addWhitelist(
+    entry: Omit<WhitelistEntry, "id" | "createdAt">,
+  ): Promise<WhitelistEntry> {
+    const item: WhitelistEntry = {
+      id: `${entry.type}:${entry.value}`,
+      type: entry.type,
+      value: entry.value.trim().toLowerCase(),
+      reason: entry.reason,
+      createdAt: Date.now(),
+      expiresAt: entry.expiresAt,
+    };
+
+    this.memoryWhitelist.set(item.id, item);
+
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        await this.redis.hset(
+          `${this.keyPrefix}whitelist`,
+          item.id,
+          JSON.stringify(item),
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          { error: err?.message },
+          "Failed to persist whitelist to Redis",
+        );
+      }
+    }
+
+    return item;
+  }
+
+  async removeWhitelist(value: string): Promise<boolean> {
+    const norm = value.trim().toLowerCase();
+    let removed = false;
+
+    for (const [id, entry] of this.memoryWhitelist.entries()) {
+      if (entry.value === norm || id === value) {
+        this.memoryWhitelist.delete(id);
+        removed = true;
+      }
+    }
+
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        await this.redis.hdel(`${this.keyPrefix}whitelist`, value, norm);
+      } catch (err: any) {
+        this.logger.warn(
+          { error: err?.message },
+          "Failed to remove whitelist from Redis",
+        );
+      }
+    }
+
+    return removed;
+  }
+
+  async listWhitelist(): Promise<WhitelistEntry[]> {
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        const raw = await this.redis.hgetall(`${this.keyPrefix}whitelist`);
+        const result: WhitelistEntry[] = [];
+        const now = Date.now();
+        for (const str of Object.values(raw)) {
+          const parsed: WhitelistEntry = JSON.parse(str);
+          if (!parsed.expiresAt || parsed.expiresAt > now) {
+            result.push(parsed);
+            this.memoryWhitelist.set(parsed.id, parsed);
+          }
+        }
+        return result;
+      } catch {
+        // fall back to memory
+      }
+    }
+
+    const now = Date.now();
+    return Array.from(this.memoryWhitelist.values()).filter(
+      (e) => !e.expiresAt || e.expiresAt > now,
+    );
+  }
+
+  async isWhitelisted(
+    ip?: string,
+    userId?: string,
+    key?: string,
+    path?: string,
+  ): Promise<boolean> {
+    const list = await this.listWhitelist();
+    const now = Date.now();
+
+    for (const entry of list) {
+      if (entry.expiresAt && entry.expiresAt <= now) continue;
+
+      if (ip && entry.type === "ip") {
+        if (
+          entry.value === ip.toLowerCase() ||
+          entry.value === "*" ||
+          this.matchIpPattern(ip, entry.value)
+        ) {
+          return true;
+        }
+      }
+
+      if (userId && entry.type === "user") {
+        if (entry.value === String(userId).toLowerCase()) return true;
+      }
+
+      if (key && entry.type === "key") {
+        if (entry.value === String(key).toLowerCase()) return true;
+      }
+
+      if (path && entry.type === "path") {
+        if (this.matchPathPattern(path, entry.value)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  async addBlacklist(
+    entry: Omit<BlacklistEntry, "id" | "createdAt">,
+  ): Promise<BlacklistEntry> {
+    const item: BlacklistEntry = {
+      id: `${entry.type}:${entry.value}`,
+      type: entry.type,
+      value: entry.value.trim().toLowerCase(),
+      reason: entry.reason,
+      createdAt: Date.now(),
+      expiresAt: entry.expiresAt,
+    };
+
+    this.memoryBlacklist.set(item.id, item);
+
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        await this.redis.hset(
+          `${this.keyPrefix}blacklist`,
+          item.id,
+          JSON.stringify(item),
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          { error: err?.message },
+          "Failed to persist blacklist to Redis",
+        );
+      }
+    }
+
+    return item;
+  }
+
+  async removeBlacklist(value: string): Promise<boolean> {
+    const norm = value.trim().toLowerCase();
+    let removed = false;
+
+    for (const [id, entry] of this.memoryBlacklist.entries()) {
+      if (entry.value === norm || id === value) {
+        this.memoryBlacklist.delete(id);
+        removed = true;
+      }
+    }
+
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        await this.redis.hdel(`${this.keyPrefix}blacklist`, value, norm);
+      } catch (err: any) {
+        this.logger.warn(
+          { error: err?.message },
+          "Failed to remove blacklist from Redis",
+        );
+      }
+    }
+
+    return removed;
+  }
+
+  async listBlacklist(): Promise<BlacklistEntry[]> {
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        const raw = await this.redis.hgetall(`${this.keyPrefix}blacklist`);
+        const result: BlacklistEntry[] = [];
+        const now = Date.now();
+        for (const str of Object.values(raw)) {
+          const parsed: BlacklistEntry = JSON.parse(str);
+          if (!parsed.expiresAt || parsed.expiresAt > now) {
+            result.push(parsed);
+            this.memoryBlacklist.set(parsed.id, parsed);
+          }
+        }
+        return result;
+      } catch {
+        // fall back to memory
+      }
+    }
+
+    const now = Date.now();
+    return Array.from(this.memoryBlacklist.values()).filter(
+      (e) => !e.expiresAt || e.expiresAt > now,
+    );
+  }
+
+  async isBlacklisted(
+    ip?: string,
+    userId?: string,
+    key?: string,
+  ): Promise<boolean> {
+    const list = await this.listBlacklist();
+    const now = Date.now();
+
+    for (const entry of list) {
+      if (entry.expiresAt && entry.expiresAt <= now) continue;
+
+      if (ip && entry.type === "ip") {
+        if (
+          entry.value === ip.toLowerCase() ||
+          this.matchIpPattern(ip, entry.value)
+        ) {
+          return true;
+        }
+      }
+
+      if (userId && entry.type === "user") {
+        if (entry.value === String(userId).toLowerCase()) return true;
+      }
+
+      if (key && entry.type === "key") {
+        if (entry.value === String(key).toLowerCase()) return true;
+      }
+    }
+
+    return false;
+  }
+
+  private matchIpPattern(ip: string, pattern: string): boolean {
+    if (pattern === ip) return true;
+    if (pattern.endsWith("*")) {
+      const prefix = pattern.slice(0, -1);
+      return ip.startsWith(prefix);
+    }
+    return false;
+  }
+
+  private matchPathPattern(path: string, pattern: string): boolean {
+    if (pattern === path || pattern === "*") return true;
+    if (pattern.endsWith("*")) {
+      const prefix = pattern.slice(0, -1);
+      return path.startsWith(prefix);
+    }
+    return false;
+  }
+
+  // ==========================================
+  // Violation Reporting & Analytics
+  // ==========================================
+
+  async recordViolation(
+    violation: Omit<RateLimitViolation, "id" | "timestamp">,
+  ): Promise<RateLimitViolation> {
+    const record: RateLimitViolation = {
+      ...violation,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: Date.now(),
+    };
+
+    this.memoryViolations.unshift(record);
+    if (this.memoryViolations.length > 2000) {
+      this.memoryViolations.length = 2000;
+    }
+
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        await this.redis.lpush(
+          `${this.keyPrefix}violations`,
+          JSON.stringify(record),
+        );
+        await this.redis.ltrim(`${this.keyPrefix}violations`, 0, 1999);
+      } catch (err: any) {
+        this.logger.warn(
+          { error: err?.message },
+          "Failed to store violation in Redis",
+        );
+      }
+    }
+
+    return record;
+  }
+
+  async getViolations(filter?: {
+    tracker?: string;
+    ip?: string;
+    userId?: string;
+    route?: string;
+    limit?: number;
+    since?: number;
+  }): Promise<RateLimitViolation[]> {
+    let list: RateLimitViolation[] = [];
+
+    if (this.redis && (await this.isRedisHealthy())) {
+      try {
+        const raw = await this.redis.lrange(
+          `${this.keyPrefix}violations`,
+          0,
+          filter?.limit ? Math.min(filter.limit * 2, 500) : 500,
+        );
+        list = raw.map((r) => JSON.parse(r));
+      } catch {
+        list = [...this.memoryViolations];
+      }
+    } else {
+      list = [...this.memoryViolations];
+    }
+
+    const since = filter?.since ?? 0;
+    let filtered = list.filter((v) => v.timestamp >= since);
+
+    if (filter?.tracker) {
+      filtered = filtered.filter((v) => v.tracker === filter.tracker);
+    }
+    if (filter?.ip) {
+      filtered = filtered.filter((v) => v.ip === filter.ip);
+    }
+    if (filter?.userId) {
+      filtered = filtered.filter((v) => v.userId === filter.userId);
+    }
+    if (filter?.route) {
+      filtered = filtered.filter((v) => v.route.includes(filter.route!));
+    }
+
+    const limit = filter?.limit ?? 100;
+    return filtered.slice(0, limit);
+  }
+
+  async getAnalytics(sinceMs = 3600_000): Promise<RateLimitAnalytics> {
+    const since = Date.now() - sinceMs;
+    const violations = await this.getViolations({ since, limit: 2000 });
+
+    const violatorCounts: Record<string, number> = {};
+    const routeCounts: Record<string, number> = {};
+    const tierCounts: Record<string, number> = {};
+    const strategyCounts: Record<string, number> = {};
+    const timeBuckets: Record<string, number> = {};
+
+    for (const v of violations) {
+      const trackerKey = v.tracker || v.ip || "unknown";
+      violatorCounts[trackerKey] = (violatorCounts[trackerKey] ?? 0) + 1;
+      routeCounts[v.route] = (routeCounts[v.route] ?? 0) + 1;
+      tierCounts[v.tier] = (tierCounts[v.tier] ?? 0) + 1;
+      strategyCounts[v.strategy] = (strategyCounts[v.strategy] ?? 0) + 1;
+
+      // Group into 5-minute buckets
+      const bucket = new Date(
+        Math.floor(v.timestamp / 300_000) * 300_000,
+      ).toISOString();
+      timeBuckets[bucket] = (timeBuckets[bucket] ?? 0) + 1;
+    }
+
+    const topViolators = Object.entries(violatorCounts)
+      .map(([tracker, count]) => ({ tracker, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const topRoutes = Object.entries(routeCounts)
+      .map(([route, count]) => ({ route, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const timeSeries = Object.entries(timeBuckets)
+      .map(([time, count]) => ({ time, count }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+
+    return {
+      timestamp: new Date().toISOString(),
+      totalViolations: violations.length,
+      uniqueViolators: Object.keys(violatorCounts).length,
+      topViolators,
+      topRoutes,
+      violationsByTier: tierCounts,
+      violationsByStrategy: strategyCounts,
+      timeSeries,
+    };
+  }
+
+  // ==========================================
+  // Endpoint-Level Configuration
+  // ==========================================
+
+  addEndpointRule(rule: EndpointRateLimitRule): void {
+    this.endpointRules.push(rule);
+  }
+
+  getEndpointRule(
+    path: string,
+    method?: string,
+  ): EndpointRateLimitRule | undefined {
+    return this.endpointRules.find((rule) => {
+      const methodMatch =
+        !rule.method ||
+        rule.method === "*" ||
+        rule.method.toUpperCase() === method?.toUpperCase();
+      const pathMatch = this.matchPathPattern(path, rule.pathPattern);
+      return methodMatch && pathMatch;
+    });
+  }
+
+  // ==========================================
+  // Entry & Storage State Queries
+  // ==========================================
 
   async getEntry(key: string): Promise<RateLimitEntry | null> {
     const entry = this.registry.get(key);
@@ -350,6 +797,8 @@ export class RateLimiterService {
       windowMs: entry.windowMs,
       remaining,
       resetAt,
+      allowed: entry.allowed,
+      denied: entry.denied,
     };
   }
 
@@ -383,6 +832,8 @@ export class RateLimiterService {
         windowMs: entry.windowMs,
         remaining: entry.lastRemaining,
         resetAt: entry.lastResetAt,
+        allowed: entry.allowed,
+        denied: entry.denied,
       }));
   }
 
@@ -438,10 +889,4 @@ export class RateLimiterService {
       lastRemaining: decision.remaining,
     });
   }
-}
-
-export interface RateLimitConfig {
-  keyPrefix?: string;
-  defaultStrategy?: RateLimitStrategy;
-  enableFallback?: boolean;
 }

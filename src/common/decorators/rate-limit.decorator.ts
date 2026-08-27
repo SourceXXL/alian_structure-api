@@ -1,5 +1,5 @@
 import { SetMetadata, applyDecorators } from "@nestjs/common";
-import { RateLimitStrategy } from "src/rate-limiting/interfaces";
+import { RateLimitStrategy } from "../../rate-limiting/interfaces";
 
 /**
  * Apply a named throttle configuration to a controller or handler.

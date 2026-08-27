@@ -51,6 +51,63 @@ export class DistributedRateLimitGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const response = context.switchToHttp().getResponse();
 
+    const clientIp = this.getClientIp(request);
+    const userId = this.getUserId(request);
+    const path = this.getScope(request, options);
+
+    // 1. Blacklist Check
+    const isBlacklisted = await this.rateLimiter.isBlacklisted(
+      clientIp,
+      userId ? String(userId) : undefined,
+    );
+
+    if (isBlacklisted) {
+      await this.rateLimiter.recordViolation({
+        ip: clientIp,
+        tracker: userId ? `user:${userId}` : `ip:${clientIp}`,
+        userId: userId ? String(userId) : undefined,
+        route: path,
+        method: request.method || "GET",
+        tier: "blacklisted",
+        strategy: RateLimitStrategy.TokenBucket,
+        limit: 0,
+        reason: "blacklisted",
+      });
+
+      if (typeof response?.header === "function") {
+        response.header("X-RateLimit-Blocked", "blacklisted");
+      } else if (typeof response?.setHeader === "function") {
+        response.setHeader("X-RateLimit-Blocked", "blacklisted");
+      }
+
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.FORBIDDEN,
+          message: "Access forbidden: Client identifier is blacklisted",
+          error: "Forbidden",
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // 2. Whitelist Check
+    const isWhitelisted = await this.rateLimiter.isWhitelisted(
+      clientIp,
+      userId ? String(userId) : undefined,
+      undefined,
+      path,
+    );
+
+    if (isWhitelisted) {
+      if (typeof response?.header === "function") {
+        response.header("X-RateLimit-Whitelisted", "true");
+      } else if (typeof response?.setHeader === "function") {
+        response.setHeader("X-RateLimit-Whitelisted", "true");
+      }
+      return true;
+    }
+
+    // 3. Resolve Policy
     const tier = this.resolveRequestTier(request);
     const policy = this.resolvePolicy(options, tier);
 
@@ -75,6 +132,18 @@ export class DistributedRateLimitGuard implements CanActivate {
     this.recordMetrics(tier, scope, policy.strategy, decision);
 
     if (!decision.allowed) {
+      await this.rateLimiter.recordViolation({
+        ip: clientIp,
+        tracker,
+        userId: userId ? String(userId) : undefined,
+        route: path,
+        method: request.method || "GET",
+        tier: policy.tier,
+        strategy: policy.strategy,
+        limit: policy.limit,
+        reason: "rate_limit_exceeded",
+      });
+
       const retryAfter = decision.retryAfterMs
         ? Math.ceil(decision.retryAfterMs / 1000)
         : Math.ceil((decision.resetAt - Date.now()) / 1000);
@@ -177,6 +246,18 @@ export class DistributedRateLimitGuard implements CanActivate {
       authType,
       explicitTier,
     );
+  }
+
+  private getClientIp(request: any): string {
+    const xff = request.headers?.["x-forwarded-for"];
+    if (typeof xff === "string" && xff.length > 0) {
+      return xff.split(",")[0].trim();
+    }
+    return request.ip ?? "127.0.0.1";
+  }
+
+  private getUserId(request: any): string | number | undefined {
+    return request.user?.id ?? request.user?.sub ?? request.user?.address;
   }
 
   private getTrackerKey(request: {
