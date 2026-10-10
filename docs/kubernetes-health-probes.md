@@ -29,11 +29,20 @@ All endpoints are public (no authentication required) and excluded from rate lim
 
 ### Status values
 
-| Value | Meaning |
-|---|---|
-| `ok` | All components healthy |
-| `degraded` | Some non-critical components down (readiness only) |
-| `error` | One or more critical components down — returns HTTP 503 |
+| Enum (`HealthStatus`) | Value | Meaning | HTTP Status Mapping |
+|---|---|---|---|
+| `HealthStatus.OK` | `ok` | All components healthy | `200 OK` |
+| `HealthStatus.DEGRADED` | `degraded` | Some non-critical components down (readiness only) | `200 OK` |
+| `HealthStatus.ERROR` | `error` | One or more critical components down | `503 Service Unavailable` |
+
+### Component status values
+
+| Enum (`ComponentStatus`) | Value | Meaning |
+|---|---|---|
+| `ComponentStatus.UP` | `up` | Subsystem responding within timeout threshold |
+| `ComponentStatus.DOWN` | `down` | Subsystem unreachable or throwing error |
+| `ComponentStatus.DEGRADED` | `degraded` | Subsystem responding with high latency or partial capacity |
+| `ComponentStatus.UNKNOWN` | `unknown` | Status evaluation skipped or unconfigured |
 
 ## Kubernetes probe configuration
 
