@@ -159,5 +159,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: typescript-client
-          path: client/
+          path: sdks/typescript
+          retention-days: 30
+
+      - name: Upload Python client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-client
+          path: sdks/python
           retention-days: 30
