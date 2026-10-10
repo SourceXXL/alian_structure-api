@@ -1,8 +1,26 @@
 import { ApiProperty } from "@nestjs/swagger";
 
+export enum ComponentStatus {
+  UP = "up",
+  DOWN = "down",
+  DEGRADED = "degraded",
+  UNKNOWN = "unknown",
+}
+
+export enum HealthStatus {
+  OK = "ok",
+  DEGRADED = "degraded",
+  ERROR = "error",
+}
+
 export class ComponentStatusDto {
-  @ApiProperty({ enum: ["up", "down"], example: "up" })
-  status: "up" | "down";
+  @ApiProperty({
+    enum: ComponentStatus,
+    enumName: "ComponentStatus",
+    example: ComponentStatus.UP,
+    description: "Component availability status: up, down, degraded, or unknown",
+  })
+  status: ComponentStatus | "up" | "down" | "degraded" | "unknown";
 
   @ApiProperty({
     required: false,
@@ -17,14 +35,15 @@ export class ComponentStatusDto {
 
 export class HealthResponseDto {
   @ApiProperty({
-    enum: ["ok", "degraded", "error"],
-    example: "ok",
+    enum: HealthStatus,
+    enumName: "HealthStatus",
+    example: HealthStatus.OK,
     description:
       "ok = all components up; degraded = some up; error = all critical components down",
   })
-  status: "ok" | "degraded" | "error";
+  status: HealthStatus | "ok" | "degraded" | "error";
 
-  @ApiProperty({ example: "2024-01-01T00:00:00.000Z" })
+  @ApiProperty({ example: "2024-01-01T00:00:00.000Z", description: "ISO 8601 evaluation timestamp" })
   timestamp: string;
 
   @ApiProperty({ example: 123.456, description: "Process uptime in seconds" })
@@ -37,6 +56,7 @@ export class HealthResponseDto {
       database: { status: "up", responseTime: 5 },
       redis: { status: "up", responseTime: 2 },
     },
+    description: "Map of component health details keyed by subsystem identifier",
   })
   components: Record<string, ComponentStatusDto>;
 }
