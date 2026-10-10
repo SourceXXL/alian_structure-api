@@ -139,12 +139,12 @@ export class FileUploadController {
           return;
         }
         const allowed = this.getAllowedMimeTypes();
-        if (allowed.has(file.mimetype)) {
+        if (allowed.has(file!.mimetype)) {
           cb(null, true);
         } else {
           cb(
             new BadRequestException(
-              `Unsupported file type: ${file.mimetype}`,
+              `Unsupported file type: ${file!.mimetype}`,
             ),
             false,
           );
