@@ -26,7 +26,7 @@ export type {
   RateLimitPolicy as RateLimitPolicyType,
   RateLimitDecision as RateLimitDecisionType,
   RateLimitEntry as RateLimitEntryType,
-  RateLimitStateType,
+  RateLimitState as RateLimitStateType,
   WhitelistEntry as WhitelistEntryType,
   BlacklistEntry as BlacklistEntryType,
   RateLimitViolation as RateLimitViolationType,
