@@ -216,9 +216,9 @@ export class WebhookController {
   @ApiQuery({ name: "limit", required: false })
   @ApiQuery({ name: "offset", required: false })
   async listDeadLetters(
+    @CurrentUser() user: AuthUser,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
-    @CurrentUser() user: AuthUser,
   ) {
     if (!user?.id) {
       throw new BadRequestException("User identity not found in request");

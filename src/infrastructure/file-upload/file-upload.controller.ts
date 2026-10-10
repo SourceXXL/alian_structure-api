@@ -41,7 +41,8 @@ import {
 } from "./dto/file-upload.dto";
 import { CurrentUser } from "src/core/auth/decorators/current-user.decorator";
 import { AuthUser } from "src/core/auth/strategies/interfaces/auth-strategy.interface";
-import { BadRequestException, ConfigService } from "@nestjs/common";
+import { BadRequestException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 /**
  * Default MIME type allowlist used when FILE_ALLOWED_MIME_TYPES is not set.
@@ -133,6 +134,10 @@ export class FileUploadController {
         fileSize: 50 * 1024 * 1024, // 50MB
       },
       fileFilter: (req, file, cb) => {
+        if (!file) {
+          cb(new BadRequestException("No file provided"), false);
+          return;
+        }
         const allowed = this.getAllowedMimeTypes();
         if (allowed.has(file.mimetype)) {
           cb(null, true);
@@ -201,11 +206,11 @@ export class FileUploadController {
   @ApiQuery({ name: "limit", required: false })
   @ApiQuery({ name: "offset", required: false })
   async listFiles(
+    @CurrentUser() user: AuthUser,
     @Query("name") name?: string,
     @Query("category") category?: string,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
-    @CurrentUser() user: AuthUser,
   ) {
     if (!user?.id) {
       throw new BadRequestException("User identity not found in request");
