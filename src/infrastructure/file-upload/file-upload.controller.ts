@@ -134,17 +134,18 @@ export class FileUploadController {
         fileSize: 50 * 1024 * 1024, // 50MB
       },
       fileFilter: (req, file, cb) => {
-        if (!file) {
+        const f = file;
+        if (!f) {
           cb(new BadRequestException("No file provided"), false);
           return;
         }
         const allowed = this.getAllowedMimeTypes();
-        if (allowed.has(file!.mimetype)) {
+        if (allowed.has(f.mimetype)) {
           cb(null, true);
         } else {
           cb(
             new BadRequestException(
-              `Unsupported file type: ${file!.mimetype}`,
+              `Unsupported file type: ${f.mimetype}`,
             ),
             false,
           );
