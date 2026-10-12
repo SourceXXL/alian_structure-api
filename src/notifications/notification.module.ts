@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { JwtModule } from '@nestjs/jwt';
-import { buildJwtModuleOptions } from 'src/config/jwt.config';
+import { buildJwtModuleOptions, LONG_LIVED_TOKEN_TTL } from 'src/config/jwt.config';
 
 // Entities
 import { Notification } from './entities/notification.entity';
@@ -65,9 +65,9 @@ import { NotificationController } from './notification.controller';
       useFactory: (configService: ConfigService) =>
         buildJwtModuleOptions({
           secret: configService.get<string>('JWT_SECRET', 'change-me-in-production'),
-          // Unchanged: notification consumers use their own longer-lived
-          // token, separate from the 15m access-token issuer in AuthModule.
-          expiresIn: '24h',
+          // Consumer tokens, separate from the 15m access-token issuer in
+          // AuthModule. Unchanged.
+          expiresIn: LONG_LIVED_TOKEN_TTL,
         }),
     }),
   ],

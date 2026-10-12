@@ -3,14 +3,16 @@ import { getRepositoryToken } from "@nestjs/typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { UnauthorizedException } from "@nestjs/common";
-import { Wallet } from "ethers";
+import { HDNodeWallet } from "ethers";
 import { WalletAuthService } from "./wallet-auth.service";
 import { ChallengeService } from "./challenge.service";
 import { EnhancedAuthService } from "./enhanced-auth.service";
 import { EmailService } from "./email.service";
 import { User, UserRole } from "../user/entities/user.entity";
-// Aliased: `Wallet` here is the ethers signing wallet, the entity is what
-// `WalletAuthService` injects its repository for.
+// Aliased: `HDNodeWallet` here is the ethers signing wallet, the entity is
+// what `WalletAuthService` injects its repository for. In ethers v6
+// `Wallet.createRandom()` returns an `HDNodeWallet`, which is a sibling of
+// `Wallet` rather than a subtype, so the variable needs the concrete type.
 import {
   Wallet as WalletEntity,
   WalletType,
@@ -33,7 +35,7 @@ describe("WalletAuthService challenge and signature flow", () => {
   let jwtService: JwtService;
   let walletRepository: { findOne: jest.Mock };
   let provenanceService: { createProvenanceRecord: jest.Mock };
-  let testWallet: Wallet;
+  let testWallet: HDNodeWallet;
 
   const mockUser = {
     id: "user-1",
@@ -110,7 +112,7 @@ describe("WalletAuthService challenge and signature flow", () => {
     challengeService = module.get<ChallengeService>(ChallengeService);
     jwtService = module.get<JwtService>(JwtService);
 
-    testWallet = Wallet.createRandom();
+    testWallet = HDNodeWallet.createRandom();
   });
 
   describe("challenge issuance", () => {
@@ -232,7 +234,7 @@ describe("WalletAuthService challenge and signature flow", () => {
       const message = challengeService.issueChallengeForAddress(
         testWallet.address,
       );
-      const otherWallet = Wallet.createRandom();
+      const otherWallet = HDNodeWallet.createRandom();
       const signature = await otherWallet.signMessage(message);
 
       await expect(
@@ -283,7 +285,7 @@ describe("WalletAuthService challenge and signature flow", () => {
       const message = challengeService.issueChallengeForAddress(
         testWallet.address,
       );
-      const otherWallet = Wallet.createRandom();
+      const otherWallet = HDNodeWallet.createRandom();
       const signature = await otherWallet.signMessage(message);
 
       await expect(

@@ -1,6 +1,20 @@
 import { JwtModuleOptions } from "@nestjs/jwt";
 
 /**
+ * Deriving the duration/algorithm types from `JwtModuleOptions` rather than
+ * re-declaring them as `string`/`string[]` keeps this file honest: `jsonwebtoken`
+ * types `expiresIn` as `number | ms.StringValue` (a template-literal union) and
+ * `algorithms` as `Algorithm[]`, so a bare `string` is not assignable and the
+ * compiler catches a malformed TTL at the definition rather than at runtime.
+ */
+type TokenLifetime = NonNullable<
+  NonNullable<JwtModuleOptions["signOptions"]>["expiresIn"]
+>;
+type VerifyAlgorithms = NonNullable<
+  NonNullable<JwtModuleOptions["verifyOptions"]>["algorithms"]
+>;
+
+/**
  * Single source of truth for JWT lifetimes and algorithm policy.
  *
  * Previously the access-token lifetime was written out as the string literal
@@ -17,7 +31,7 @@ import { JwtModuleOptions } from "@nestjs/jwt";
  * Access-token lifetime, as a `ms`-style string understood by `jsonwebtoken`.
  * Shared by `AuthService` and `EnhancedAuthService`.
  */
-export const ACCESS_TOKEN_TTL = "15m";
+export const ACCESS_TOKEN_TTL: TokenLifetime = "15m";
 
 /**
  * `ACCESS_TOKEN_TTL` expressed in seconds, for assertions and for places that
@@ -33,7 +47,15 @@ export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** `REFRESH_TOKEN_TTL_MS` as a `jsonwebtoken` duration string. */
-export const REFRESH_TOKEN_TTL = "7d";
+export const REFRESH_TOKEN_TTL: TokenLifetime = "7d";
+
+/**
+ * Lifetime for the long-lived tokens issued by `DashboardModule` (websocket
+ * gateway tickets) and `NotificationModule` (consumer tokens). These are
+ * separate issuers from the 15-minute access-token issuer in `AuthModule`, and
+ * their TTLs are unchanged.
+ */
+export const LONG_LIVED_TOKEN_TTL: TokenLifetime = "24h";
 
 /**
  * Algorithm used to sign new tokens. Pinned explicitly rather than relying on
@@ -47,13 +69,15 @@ export const JWT_SIGNING_ALGORITHM = "HS256";
  * presented with some other algorithm is rejected outright instead of the
  * verifier deciding for itself.
  */
-export const JWT_VERIFY_ALGORITHMS: string[] = [JWT_SIGNING_ALGORITHM];
+export const JWT_VERIFY_ALGORITHMS: VerifyAlgorithms = [
+  JWT_SIGNING_ALGORITHM,
+];
 
 export interface JwtIssuerConfig {
   /** Signing/verification secret. */
   secret: string;
   /** Default lifetime applied when a caller does not pass its own `expiresIn`. */
-  expiresIn: string;
+  expiresIn: TokenLifetime;
 }
 
 /**
