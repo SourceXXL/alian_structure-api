@@ -1,5 +1,13 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
+  // Unit specs are colocated with the code they cover, so `rootDir` is `src`.
+  //
+  // NOTE: because rootDir is `src`, a `*.spec.ts` written anywhere else in the
+  // repository matches `testRegex` below but is *never executed* - `npm test`
+  // still passes, which makes the gap invisible. Tests that need the whole app
+  // (supertest, TypeOrmModule.forRoot, dropSchema) belong in `test/` and must
+  // use the `.e2e-spec.ts` suffix so that test/jest-e2e.json picks them up.
+  // src/config/jest-project-coverage.spec.ts enforces both halves of this.
   rootDir: 'src',
   testRegex: '.*\\.spec\\.ts$',
   transform: {
