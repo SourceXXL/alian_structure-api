@@ -8,6 +8,7 @@ import {
   httpRequestsInProgress,
   errorTotal,
 } from "../config/metrics";
+import { generateRandomId } from "src/common/utils/random-id";
 
 /**
  * Normalise an Express request path so it can be safely used as a Prometheus
@@ -52,9 +53,15 @@ export class RequestTimingMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const headerRequestId = req.headers["x-request-id"];
+    // Correlation id for this request's timing sample. The previous fallback,
+    // `Math.random().toString(36).substring(7)`, is not a CSPRNG and returned a
+    // ~9 character predictable string: overlapping requests can collide on the
+    // same key and end up sharing (and clobbering) each other's entry in
+    // `activeRequests`. A v4 UUID matches the `x-request-id` values that
+    // callers already send, so the key space is uniform.
     const requestId: string = Array.isArray(headerRequestId)
       ? headerRequestId[0]
-      : headerRequestId || Math.random().toString(36).substring(7);
+      : headerRequestId || generateRandomId();
     const startTime = Date.now();
     const normalisedPath = normaliseRoute(req.path);
     // At middleware entry, Express has not yet matched a route, so fall back
