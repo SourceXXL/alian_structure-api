@@ -1,10 +1,10 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
-import { RecoveryService } from "../src/core/auth/recovery.service";
-import { EmailLinkingService } from "../src/core/auth/email-linking.service";
-import { EmailService } from "../src/core/auth/email.service";
-import { ChallengeService } from "../src/core/auth/challenge.service";
-import { User } from "../src/core/user/entities/user.entity";
+import { RecoveryService } from "./recovery.service";
+import { EmailLinkingService } from "./email-linking.service";
+import { EmailService } from "./email.service";
+import { ChallengeService } from "./challenge.service";
+import { User } from "../user/entities/user.entity";
 
 describe("RecoveryService", () => {
   let service: RecoveryService;
@@ -12,14 +12,16 @@ describe("RecoveryService", () => {
   let emailService: EmailService;
   let challengeService: ChallengeService;
 
-  const mockUser: User = {
+  // `User` has a lot of required columns; only the ones this service reads
+  // (`walletAddress` via getUserByEmail) are populated here.
+  const mockUser = {
     id: "123",
     walletAddress: "0x1234567890123456789012345678901234567890",
     email: "test@example.com",
     emailVerified: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  } as unknown as User;
 
   const mockEmailLinkingService = {
     getUserByEmail: jest.fn(),
