@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { JwtModule } from '@nestjs/jwt';
+import { buildJwtModuleOptions } from 'src/config/jwt.config';
 
 // Entities
 import { Notification } from './entities/notification.entity';
@@ -61,10 +62,13 @@ import { NotificationController } from './notification.controller';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'change-me-in-production'),
-        signOptions: { expiresIn: '24h' },
-      }),
+      useFactory: (configService: ConfigService) =>
+        buildJwtModuleOptions({
+          secret: configService.get<string>('JWT_SECRET', 'change-me-in-production'),
+          // Unchanged: notification consumers use their own longer-lived
+          // token, separate from the 15m access-token issuer in AuthModule.
+          expiresIn: '24h',
+        }),
     }),
   ],
   controllers: [NotificationController],
