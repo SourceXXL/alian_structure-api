@@ -205,6 +205,32 @@ The backend supports two authentication methods:
 
 All authentication endpoints use JWT tokens for session management with bcrypt password hashing for traditional auth.
 
+#### Token lifetimes and algorithm
+
+Token lifetimes and the signing algorithm are defined once, in
+[`src/config/jwt.config.ts`](src/config/jwt.config.ts), and referenced by both
+`AuthService` and `EnhancedAuthService`:
+
+| Token | Lifetime | Constant |
+| --- | --- | --- |
+| Access token | 15 minutes | `ACCESS_TOKEN_TTL` |
+| Refresh token | 7 days | `REFRESH_TOKEN_TTL_MS` |
+
+Tokens are signed with `HS256` and verification is restricted to an explicit
+`algorithms: ['HS256']` allowlist; a token presented under any other algorithm is
+rejected rather than the verifier choosing for itself.
+
+Clients must treat an expired access token as a normal condition and exchange it
+for a new one via the refresh endpoint - a 15-minute access token means an
+unattended client will need to refresh roughly every quarter hour.
+
+> **Upgrade note.** `EnhancedAuthService` previously issued access tokens via
+> `jwtService.sign(payload)` with no options, so the lifetime was whatever the
+> `JwtModule` default happened to be. Sessions issued before this change keep
+> whatever lifetime they were minted with until they expire; only newly issued
+> tokens are guaranteed to carry a 15-minute `exp`. The refresh token lifetime
+> is unchanged.
+
 ### Job Control API
 
 Fine-grained control over compute jobs with role-based access control:

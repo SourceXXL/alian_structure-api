@@ -1,16 +1,16 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigService } from "@nestjs/config";
-import { Wallet } from "ethers";
-import { PayloadSigningService } from "../../src/blockchain/oracle/services/payload-signing.service";
+import { HDNodeWallet } from "ethers";
+import { PayloadSigningService } from "./payload-signing.service";
 
 describe("PayloadSigningService", () => {
   let service: PayloadSigningService;
-  let testWallet: Wallet;
+  let testWallet: HDNodeWallet;
   let configService: ConfigService;
 
   beforeEach(async () => {
     // Create a test wallet
-    testWallet = Wallet.createRandom();
+    testWallet = HDNodeWallet.createRandom();
 
     // Mock ConfigService
     const mockConfigService = {
@@ -207,7 +207,7 @@ describe("PayloadSigningService", () => {
         payload,
       );
 
-      const differentWallet = Wallet.createRandom();
+      const differentWallet = HDNodeWallet.createRandom();
 
       const isValid = service.verifySignature(
         signature,

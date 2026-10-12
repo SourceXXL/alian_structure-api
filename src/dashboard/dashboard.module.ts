@@ -17,6 +17,7 @@ import {
 } from "./websocket/services/reconnection.service";
 import { WebSocketHealthService } from "./websocket/services/websocket-health.service";
 import { WsExceptionFilter } from "./websocket/filters/ws-exception.filter";
+import { buildJwtModuleOptions, LONG_LIVED_TOKEN_TTL } from "src/config/jwt.config";
 
 @Module({
   imports: [
@@ -24,12 +25,15 @@ import { WsExceptionFilter } from "./websocket/filters/ws-exception.filter";
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>("JWT_SECRET") ||
-          "default-secret-change-in-production",
-        signOptions: { expiresIn: "24h" },
-      }),
+      useFactory: (configService: ConfigService) =>
+        buildJwtModuleOptions({
+          secret:
+            configService.get<string>("JWT_SECRET") ||
+            "default-secret-change-in-production",
+          // The websocket gateway issues its own long-lived ticket, separate
+          // from the 15m access-token issuer in AuthModule. Unchanged.
+          expiresIn: LONG_LIVED_TOKEN_TTL,
+        }),
     }),
   ],
   controllers: [DashboardController],

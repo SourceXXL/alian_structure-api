@@ -35,6 +35,7 @@ import { User } from "../user/entities/user.entity";
 import { EmailVerification } from "./entities/email-verification.entity";
 import { Wallet } from "./entities/wallet.entity";
 import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
+import { buildAccessTokenJwtModuleOptions } from "src/config/jwt.config";
 
 /**
  * AuthModule — Authentication Architecture Overview
@@ -69,10 +70,10 @@ import { RefreshToken, TwoFactorAuth } from "./entities/auth.entity";
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>("JWT_SECRET"),
-        signOptions: { expiresIn: "15m" },
-      }),
+      useFactory: (configService: ConfigService) =>
+        buildAccessTokenJwtModuleOptions(
+          configService.get<string>("JWT_SECRET"),
+        ),
     }),
     TypeOrmModule.forFeature([
       User,
