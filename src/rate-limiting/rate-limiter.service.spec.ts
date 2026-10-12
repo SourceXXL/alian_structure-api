@@ -1,5 +1,5 @@
 import { RateLimiterService, RateLimitConfig } from "./rate-limiter.service";
-import { RateLimitStrategy } from "./interfaces";
+import { RateLimitStrategy, RateLimitViolation } from "./interfaces";
 
 const DEFAULT_CONFIG: RateLimitConfig = {
   keyPrefix: "alian:rl:",
@@ -284,7 +284,10 @@ describe("RateLimiterService", () => {
       });
 
       it("assigns every violation a CSPRNG-backed id", async () => {
-        const violation = {
+        // Annotated rather than left to inference: `reason` is a string
+        // literal union on RateLimitViolation, and widening it to `string` by
+        // extracting the literal into a variable makes it unassignable.
+        const violation: Omit<RateLimitViolation, "id" | "timestamp"> = {
           ip: "1.2.3.4",
           tracker: "ip:1.2.3.4",
           route: "/api/v1/auth/login",
