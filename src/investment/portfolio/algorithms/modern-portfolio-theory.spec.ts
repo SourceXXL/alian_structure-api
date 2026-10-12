@@ -1,4 +1,4 @@
-import { ModernPortfolioTheory } from "../../src/investment/portfolio/algorithms/modern-portfolio-theory";
+import { ModernPortfolioTheory } from "./modern-portfolio-theory";
 
 describe("ModernPortfolioTheory", () => {
   describe("calculatePortfolioMetrics", () => {

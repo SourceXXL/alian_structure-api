@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigService } from "@nestjs/config";
 import { Wallet } from "ethers";
-import { PayloadSigningService } from "../../src/blockchain/oracle/services/payload-signing.service";
+import { PayloadSigningService } from "./payload-signing.service";
 
 describe("PayloadSigningService", () => {
   let service: PayloadSigningService;

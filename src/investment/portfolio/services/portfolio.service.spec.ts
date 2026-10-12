@@ -1,20 +1,20 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
-import { PortfolioService } from "../../src/investment/portfolio/services/portfolio.service";
-import { Portfolio } from "../../src/investment/portfolio/entities/portfolio.entity";
+import { PortfolioService } from "src/investment/portfolio/services/portfolio.service";
+import { Portfolio } from "src/investment/portfolio/entities/portfolio.entity";
 import {
   PortfolioAsset,
   Chain,
   AssetType,
-} from "../../src/investment/portfolio/entities/portfolio-asset.entity";
-import { OptimizationHistory } from "../../src/investment/portfolio/entities/optimization-history.entity";
-import { RiskProfile } from "../../src/investment/portfolio/entities/risk-profile.entity";
-import { CreatePortfolioDto } from "../../src/investment/portfolio/dto/portfolio.dto";
-import { OptimizationMethod } from "../../src/investment/portfolio/entities/optimization-history.entity";
+} from "src/investment/portfolio/entities/portfolio-asset.entity";
+import { OptimizationHistory } from "src/investment/portfolio/entities/optimization-history.entity";
+import { RiskProfile } from "src/investment/portfolio/entities/risk-profile.entity";
+import { CreatePortfolioDto } from "src/investment/portfolio/dto/portfolio.dto";
+import { OptimizationMethod } from "src/investment/portfolio/entities/optimization-history.entity";
 import {
   AddHoldingDto,
   UpdateHoldingDto,
-} from "../../src/investment/portfolio/dto/portfolio-asset.dto";
+} from "src/investment/portfolio/dto/portfolio-asset.dto";
 
 describe("PortfolioService", () => {
   let service: PortfolioService;
