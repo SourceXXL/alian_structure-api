@@ -27,6 +27,9 @@ import {
   UpdateWebhookSubscriptionDto,
   PublishWebhookEventDto,
 } from "./dto/webhook.dto";
+import { CurrentUser } from "src/core/auth/decorators/current-user.decorator";
+import { AuthUser } from "src/core/auth/strategies/interfaces/auth-strategy.interface";
+import { BadRequestException } from "@nestjs/common";
 
 @ApiTags("Webhooks")
 @ApiBearerAuth()
@@ -48,9 +51,12 @@ export class WebhookController {
   @ApiResponse({ status: 201, description: "Subscription created with signing key" })
   async createSubscription(
     @Body() dto: CreateWebhookSubscriptionDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    // TODO: extract userId from auth guard
-    const userId = "system";
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const sub = await this.subscriptionService.create(userId, dto);
     return {
       success: true,
@@ -61,8 +67,11 @@ export class WebhookController {
 
   @Get("subscriptions")
   @ApiOperation({ summary: "List all webhook subscriptions" })
-  async listSubscriptions() {
-    const userId = "system";
+  async listSubscriptions(@CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const subscriptions = await this.subscriptionService.findAll(userId);
     // Strip signing keys from response
     const safe = subscriptions.map(({ signingKey, ...rest }) => rest);
@@ -72,8 +81,11 @@ export class WebhookController {
   @Get("subscriptions/:id")
   @ApiOperation({ summary: "Get a webhook subscription by ID" })
   @ApiParam({ name: "id" })
-  async getSubscription(@Param("id") id: string) {
-    const userId = "system";
+  async getSubscription(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const sub = await this.subscriptionService.findOne(id, userId);
     const { signingKey, ...rest } = sub;
     return { success: true, subscription: rest };
@@ -85,8 +97,12 @@ export class WebhookController {
   async updateSubscription(
     @Param("id") id: string,
     @Body() dto: UpdateWebhookSubscriptionDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    const userId = "system";
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const sub = await this.subscriptionService.update(id, userId, dto);
     const { signingKey, ...rest } = sub;
     return { success: true, subscription: rest };
@@ -96,8 +112,11 @@ export class WebhookController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Disable a webhook subscription" })
   @ApiParam({ name: "id" })
-  async deleteSubscription(@Param("id") id: string) {
-    const userId = "system";
+  async deleteSubscription(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     await this.subscriptionService.remove(id, userId);
     return { success: true, message: "Subscription disabled" };
   }
@@ -106,8 +125,11 @@ export class WebhookController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Rotate the signing key for a subscription" })
   @ApiParam({ name: "id" })
-  async rotateKey(@Param("id") id: string) {
-    const userId = "system";
+  async rotateKey(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const result = await this.subscriptionService.rotateKey(id, userId);
     return {
       success: true,
@@ -123,8 +145,12 @@ export class WebhookController {
   async toggleStatus(
     @Param("id") id: string,
     @Query("status") status: "active" | "paused" | "disabled",
+    @CurrentUser() user: AuthUser,
   ) {
-    const userId = "system";
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const sub = await this.subscriptionService.toggleStatus(id, userId, status as any);
     const { signingKey, ...rest } = sub;
     return { success: true, subscription: rest };
@@ -190,10 +216,14 @@ export class WebhookController {
   @ApiQuery({ name: "limit", required: false })
   @ApiQuery({ name: "offset", required: false })
   async listDeadLetters(
+    @CurrentUser() user: AuthUser,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
   ) {
-    const userId = "system";
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const deadLetters = await this.deliveryService.getDeadLetters(
       userId,
       limit || 50,

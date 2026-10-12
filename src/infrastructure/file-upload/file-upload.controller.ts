@@ -39,6 +39,60 @@ import {
   FileSearchDto,
   FileCleanupDto,
 } from "./dto/file-upload.dto";
+import { CurrentUser } from "src/core/auth/decorators/current-user.decorator";
+import { AuthUser } from "src/core/auth/strategies/interfaces/auth-strategy.interface";
+import { BadRequestException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+
+/**
+ * Default MIME type allowlist used when FILE_ALLOWED_MIME_TYPES is not set.
+ * Mirrors the FileValidationService default categories.
+ */
+const DEFAULT_ALLOWED_MIME_TYPES = [
+  // Images
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "image/tiff",
+  "image/bmp",
+  "image/avif",
+  // Documents
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+  "application/json",
+  "application/xml",
+  // Video
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-matroska",
+  // Audio
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/aac",
+  "audio/flac",
+  "audio/mp4",
+  // Archives
+  "application/zip",
+  "application/x-tar",
+  "application/gzip",
+  "application/x-rar-compressed",
+  "application/x-7z-compressed",
+  "application/x-bzip2",
+];
 
 @ApiTags("Files")
 @ApiBearerAuth()
@@ -51,7 +105,24 @@ export class FileUploadController {
     private readonly cleanupService: FileCleanupService,
     private readonly scanService: FileScanService,
     private readonly metadataService: FileMetadataService,
+    private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Resolves the MIME type allowlist from FILE_ALLOWED_MIME_TYPES env var.
+   * Falls back to the default list when unset or empty.
+   */
+  private getAllowedMimeTypes(): Set<string> {
+    const raw = this.configService.get<string>("FILE_ALLOWED_MIME_TYPES");
+    if (!raw) {
+      return new Set(DEFAULT_ALLOWED_MIME_TYPES);
+    }
+    const parsed = raw
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    return parsed.length > 0 ? new Set(parsed) : new Set(DEFAULT_ALLOWED_MIME_TYPES);
+  }
 
   // ── Upload ────────────────────────────────────────────────────────
 
@@ -61,6 +132,24 @@ export class FileUploadController {
     FileInterceptor("file", {
       limits: {
         fileSize: 50 * 1024 * 1024, // 50MB
+      },
+      fileFilter: (req, file, cb) => {
+        const f = file;
+        if (!f) {
+          cb(new BadRequestException("No file provided"), false);
+          return;
+        }
+        const allowed = this.getAllowedMimeTypes();
+        if (allowed.has(f.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              `Unsupported file type: ${f.mimetype}`,
+            ),
+            false,
+          );
+        }
       },
     }),
   )
@@ -85,8 +174,12 @@ export class FileUploadController {
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    const userId = "system";
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const result = await this.storageService.upload(file, userId, dto);
 
     return {
@@ -114,12 +207,16 @@ export class FileUploadController {
   @ApiQuery({ name: "limit", required: false })
   @ApiQuery({ name: "offset", required: false })
   async listFiles(
+    @CurrentUser() user: AuthUser,
     @Query("name") name?: string,
     @Query("category") category?: string,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
   ) {
-    const userId = "system";
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const { files, total } = await this.storageService.search(
       {
         name,
@@ -148,8 +245,11 @@ export class FileUploadController {
 
   @Get("search")
   @ApiOperation({ summary: "Search files with filters" })
-  async searchFiles(@Query() dto: FileSearchDto) {
-    const userId = "system";
+  async searchFiles(@Query() dto: FileSearchDto, @CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const { files, total } = await this.storageService.search(dto, userId);
 
     return {
@@ -262,8 +362,11 @@ export class FileUploadController {
 
   @Get("stats/overview")
   @ApiOperation({ summary: "Get file storage statistics" })
-  async getStats() {
-    const userId = "system";
+  async getStats(@CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const userId = user.id;
     const stats = await this.storageService.getStorageStats(userId);
     return { success: true, stats };
   }
