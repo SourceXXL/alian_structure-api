@@ -282,6 +282,33 @@ describe("RateLimiterService", () => {
         expect(analytics.topViolators[0].tracker).toBe("ip:1.2.3.4");
         expect(analytics.topRoutes[0].route).toBe("/api/v1/auth/login");
       });
+
+      it("assigns every violation a CSPRNG-backed id", async () => {
+        const violation = {
+          ip: "1.2.3.4",
+          tracker: "ip:1.2.3.4",
+          route: "/api/v1/auth/login",
+          method: "POST",
+          tier: "free",
+          strategy: RateLimitStrategy.TokenBucket,
+          limit: 5,
+          reason: "rate_limit_exceeded",
+        };
+
+        const ids = new Set<string>();
+        for (let i = 0; i < 5_000; i++) {
+          const { id } = await service.recordViolation(violation);
+          // Ids are externally visible on the rate-limiting API: keep the
+          // existing `<epochMillis>-<suffix>` shape, but the suffix must now be
+          // a v4 UUID rather than a `Math.random()` base-36 fragment.
+          expect(id).toMatch(
+            /^\d{13}-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+          );
+          ids.add(id);
+        }
+
+        expect(ids.size).toBe(5_000);
+      });
     });
 
     describe("endpoint rule configuration", () => {
@@ -448,6 +475,32 @@ describe("RateLimiterService", () => {
 
       expect(mockRedis.eval).toHaveBeenCalled();
       expect(decision.allowed).toBe(true);
+    });
+
+    it("passes a unique CSPRNG member per sliding-window request", async () => {
+      const policy = {
+        limit: 5,
+        windowMs: 60_000,
+        burst: 5,
+        strategy: RateLimitStrategy.SlidingWindow,
+      };
+
+      for (let i = 0; i < 2_000; i++) {
+        await service.consume("redis-sw-unique:g:f", policy, null, "global", "f");
+      }
+
+      // The 5th ARGV is the sorted-set member. A colliding member would let one
+      // request evict or double-count another client's window entry.
+      const members = mockRedis.eval.mock.calls.map(
+        (call: unknown[]) => call[5] as string,
+      );
+      expect(members.length).toBe(2_000);
+      expect(new Set(members).size).toBe(2_000);
+      for (const member of members) {
+        expect(member).toMatch(
+          /^\d{13}-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        );
+      }
     });
 
     it("falls back to memory when Redis eval throws", async () => {
