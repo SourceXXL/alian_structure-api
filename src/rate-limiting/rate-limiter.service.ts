@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import Redis from "ioredis";
 import { CACHE_REDIS_CLIENT } from "../common/cache/cache.constants";
+import { generateTimestampedId } from "src/common/utils/random-id";
 import {
   BlacklistEntry,
   EndpointRateLimitRule,
@@ -194,7 +195,13 @@ export class RateLimiterService {
       let result: [number, number, number];
 
       if (policy.strategy === RateLimitStrategy.SlidingWindow) {
-        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        // This is the *member* written into the sliding-window sorted set by
+        // SLIDING_WINDOW_LUA. It must be unique per request: a collision lets
+        // one request evict or double-count another client's window entry,
+        // which is a rate-limit bypass under load. `Date.now()` alone is not
+        // enough (many requests land in the same millisecond), so the suffix
+        // has to come from a CSPRNG.
+        const requestId = generateTimestampedId();
         result = (await this.redis!.eval(
           SLIDING_WINDOW_LUA,
           1,
@@ -607,7 +614,11 @@ export class RateLimiterService {
   ): Promise<RateLimitViolation> {
     const record: RateLimitViolation = {
       ...violation,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      // The id is returned to clients through the rate-limiting API and
+      // persisted into the audit trail (Redis list + in-memory ring buffer),
+      // so it must not collide: two violations recorded in the same
+      // millisecond used to be able to share an id.
+      id: generateTimestampedId(),
       timestamp: Date.now(),
     };
 

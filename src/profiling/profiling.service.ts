@@ -8,6 +8,7 @@ import { Session } from "inspector";
 import { getHeapSnapshot, getHeapStatistics } from "v8";
 import { performance, PerformanceObserver } from "perf_hooks";
 import * as Sentry from "@sentry/node";
+import { generatePrefixedTimestampedId } from "src/common/utils/random-id";
 import { register } from "../config/metrics";
 
 const execAsync = promisify(exec);
@@ -122,7 +123,12 @@ export class ProfilingService {
     const session = new Session();
     session.connect();
 
-    const profileId = `cpu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Key into `activeProfiles` and the on-disk artefact name. The `cpu-`
+    // prefix keeps the filename self-describing and the epoch-millis segment
+    // keeps the profiles directory lexicographically sortable; only the
+    // `Math.random()` suffix is being replaced, since two profiles started in
+    // the same millisecond could previously overwrite each other.
+    const profileId = generatePrefixedTimestampedId("cpu");
     const filePath = path.join(this.profilesDir, `${profileId}.cpuprofile`);
 
     const metadata: ProfileMetadata = {
@@ -177,7 +183,8 @@ export class ProfilingService {
     path: string;
     size: number;
   }> {
-    const snapshotId = `heap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // See `startCPUProfile`: `heap-` prefix + timestamp, CSPRNG suffix.
+    const snapshotId = generatePrefixedTimestampedId("heap");
     const filePath = path.join(this.profilesDir, `${snapshotId}.heapsnapshot`);
     const writeStream = fs.createWriteStream(filePath);
 
