@@ -133,24 +133,19 @@ export class FileUploadController {
       limits: {
         fileSize: 50 * 1024 * 1024, // 50MB
       },
-      fileFilter: (req, file, cb) => {
-        const f = file;
-        if (!f) {
-          cb(new BadRequestException("No file provided"), false);
-          return;
-        }
-        const allowed = this.getAllowedMimeTypes();
-        if (allowed.has(f.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(
-            new BadRequestException(
-              `Unsupported file type: ${f.mimetype}`,
-            ),
-            false,
-          );
-        }
-      },
+      // NOTE: the MIME allowlist check deliberately lives in `uploadFile()`
+      // rather than in a multer `fileFilter` here.
+      //
+      // Decorator expressions are evaluated once, when the class is defined -
+      // not per request - so an arrow function inside one captures whatever
+      // `this` is at class-definition time (the class/prototype), and then
+      // reuses it for every subsequent request. Calling a prototype method
+      // through it is not the instance method, which is both why the type
+      // checker flags this and why the check was never reliable. `uploadFile`
+      // runs per request against the real instance, so `this` is correct.
+      //
+      // The size limit stays on the interceptor: multer enforces it while
+      // streaming, before the body is buffered, so it must not be moved.
     }),
   )
   @ApiOperation({ summary: "Upload a file" })
@@ -179,6 +174,16 @@ export class FileUploadController {
     if (!user?.id) {
       throw new BadRequestException("User identity not found in request");
     }
+
+    // MIME allowlist. See the note on the interceptor above for why this is
+    // here rather than in a multer `fileFilter`.
+    if (!file) {
+      throw new BadRequestException("No file provided");
+    }
+    if (!this.getAllowedMimeTypes().has(file.mimetype)) {
+      throw new BadRequestException(`Unsupported file type: ${file.mimetype}`);
+    }
+
     const userId = user.id;
     const result = await this.storageService.upload(file, userId, dto);
 
