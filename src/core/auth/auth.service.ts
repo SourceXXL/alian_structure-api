@@ -13,6 +13,7 @@ import { User } from "../user/entities/user.entity";
 import { RegisterDto, LoginDto } from "./dto/auth.dto";
 import { TokenBlacklistService } from "./token-blacklist.service";
 import { resolveRateLimitTierFromRole } from "src/config/quota.config";
+import { ACCESS_TOKEN_TTL } from "src/config/jwt.config";
 
 @Injectable()
 export class AuthService {
@@ -96,7 +97,9 @@ export class AuthService {
       jti,
       tier: resolveRateLimitTierFromRole(user.role),
     };
-    const token = this.jwtService.sign(payload, { expiresIn: "15m" });
+    // Same constant as `EnhancedAuthService.generateTokens()` - the two
+    // services must not be able to drift apart again.
+    const token = this.jwtService.sign(payload, { expiresIn: ACCESS_TOKEN_TTL });
 
     return {
       token,
@@ -148,7 +151,9 @@ export class AuthService {
       jti,
       tier: resolveRateLimitTierFromRole(user.role),
     };
-    const token = this.jwtService.sign(payload, { expiresIn: "15m" });
+    // Same constant as `EnhancedAuthService.generateTokens()` - the two
+    // services must not be able to drift apart again.
+    const token = this.jwtService.sign(payload, { expiresIn: ACCESS_TOKEN_TTL });
 
     return {
       token,

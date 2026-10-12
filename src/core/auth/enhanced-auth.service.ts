@@ -19,6 +19,10 @@ import * as qrcode from "qrcode";
 import { EmailService } from "./email.service";
 import { User } from "src/core/user/entities/user.entity";
 import { resolveRateLimitTierFromRole } from "src/config/quota.config";
+import {
+  ACCESS_TOKEN_TTL,
+  REFRESH_TOKEN_TTL_MS,
+} from "src/config/jwt.config";
 import { normalizeRole } from "src/common/guard/roles.enum";
 import {
   RefreshToken,
@@ -561,14 +565,21 @@ export class EnhancedAuthService {
       tier: resolveRateLimitTierFromRole(user.role),
       twoFactorVerified,
     };
-    const accessToken = this.jwtService.sign(payload);
+    // Sign with an *explicit* `expiresIn`. Relying on the JwtModule default is
+    // what allowed this call site to silently drift from `AuthService`: if the
+    // module ever registers without `signOptions.expiresIn`, the resulting
+    // token has no `exp` claim at all and therefore never expires - a leaked
+    // access token would stay valid forever and logout could not revoke it.
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: ACCESS_TOKEN_TTL,
+    });
 
     // Generate refresh token
     const refreshTokenValue = this.generateRefreshToken();
     const refreshTokenEntity = this.refreshTokenRepository.create({
       userId: user.id,
       token: refreshTokenValue,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
       ipAddress,
       userAgent,
     });
