@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import Redis from "ioredis";
 import { CACHE_REDIS_CLIENT } from "../common/cache/cache.constants";
-import { generateTimestampedId } from "src/common/utils/random-id";
 import {
   BlacklistEntry,
   EndpointRateLimitRule,
@@ -18,76 +17,10 @@ import {
   rateLimitErrorsTotal,
   rateLimitStorageHealth,
 } from "./rate-limiting.metrics";
-
-const TOKEN_BUCKET_LUA = `
-local key = KEYS[1]
-local capacity = tonumber(ARGV[1])
-local rate_per_sec = tonumber(ARGV[2])
-local now_ms = tonumber(ARGV[3])
-local cost = tonumber(ARGV[4])
-
-local data = redis.call('HMGET', key, 'tokens', 'ts')
-local tokens = tonumber(data[1])
-local ts = tonumber(data[2])
-
-if tokens == nil then
-  tokens = capacity
-  ts = now_ms
-end
-
-local elapsed_ms = now_ms - ts
-local token_delta = elapsed_ms * rate_per_sec / 1000
-tokens = math.min(capacity, tokens + token_delta)
-ts = now_ms
-
-if tokens >= cost then
-  tokens = tokens - cost
-  redis.call('HMSET', key, 'tokens', tostring(tokens), 'ts', tostring(ts))
-  local ttl = math.ceil((capacity - tokens + 1) / rate_per_sec)
-  if ttl < 1 then ttl = 1 end
-  redis.call('EXPIRE', key, ttl)
-  return {1, math.floor(tokens), 0}
-else
-  local wait_ms = math.ceil((cost - tokens) / rate_per_sec * 1000)
-  redis.call('HMSET', key, 'tokens', tostring(tokens), 'ts', tostring(ts))
-  local ttl = math.ceil((cost - tokens + 1) / rate_per_sec)
-  if ttl < 1 then ttl = 1 end
-  redis.call('EXPIRE', key, ttl)
-  return {0, math.floor(tokens), wait_ms}
-end
-`;
-
-const SLIDING_WINDOW_LUA = `
-local key = KEYS[1]
-local limit = tonumber(ARGV[1])
-local window_ms = tonumber(ARGV[2])
-local now_ms = tonumber(ARGV[3])
-local request_id = ARGV[4]
-
-local min_score = now_ms - window_ms
-redis.call('ZREMRANGEBYSCORE', key, 0, min_score)
-
-local count = redis.call('ZCARD', key)
-
-if count < limit then
-  redis.call('ZADD', key, now_ms, request_id)
-  redis.call('PEXPIRE', key, window_ms)
-  return {1, limit - count - 1, 0}
-else
-  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-  local reset_at = now_ms
-  if #oldest > 0 then
-    reset_at = tonumber(oldest[2]) + window_ms
-  end
-  local retry_after = math.max(0, reset_at - now_ms)
-  return {0, 0, retry_after}
-end
-`;
-
-interface MemoryTokenBucketState {
-  tokens: number;
-  ts: number;
-}
+import { MemoryRateLimitStrategy } from "./strategies/memory-rate-limit.strategy";
+import { RedisRateLimitStrategy } from "./strategies/redis-rate-limit.strategy";
+import { ViolationsService } from "./violations/violations.service";
+import { PolicyService } from "./policies/policy.service";
 
 interface MemoryEntry {
   tracker: string;
@@ -114,18 +47,15 @@ export interface RateLimitConfig {
 export class RateLimiterService {
   private readonly logger = new Logger(RateLimiterService.name);
   private readonly redis: Redis | null;
-  private readonly memoryBuckets = new Map<string, MemoryTokenBucketState>();
-  private readonly memoryWindows = new Map<string, number[]>();
   private readonly registry = new Map<string, MemoryEntry>();
   private readonly keyPrefix: string;
   private readonly defaultStrategy: RateLimitStrategy;
   private readonly enableFallback: boolean;
 
-  // In-memory collections
-  private readonly memoryWhitelist = new Map<string, WhitelistEntry>();
-  private readonly memoryBlacklist = new Map<string, BlacklistEntry>();
-  private readonly memoryViolations: RateLimitViolation[] = [];
-  private readonly endpointRules: EndpointRateLimitRule[] = [];
+  private readonly memoryStrategy: MemoryRateLimitStrategy;
+  private readonly redisStrategy: RedisRateLimitStrategy;
+  private readonly violationsService: ViolationsService;
+  private readonly policyService: PolicyService;
 
   private lastRedisCheck = 0;
   private redisHealthy = false;
@@ -133,6 +63,10 @@ export class RateLimiterService {
   constructor(
     @Optional() @Inject(CACHE_REDIS_CLIENT) redis: Redis | null,
     @Optional() @Inject("RATE_LIMIT_CONFIG") config?: RateLimitConfig,
+    @Optional() memoryStrategy?: MemoryRateLimitStrategy,
+    @Optional() redisStrategy?: RedisRateLimitStrategy,
+    @Optional() violationsService?: ViolationsService,
+    @Optional() policyService?: PolicyService,
   ) {
     this.redis = redis;
     this.keyPrefix = config?.keyPrefix ?? "alian:rl:";
@@ -140,14 +74,17 @@ export class RateLimiterService {
       config?.defaultStrategy ?? RateLimitStrategy.TokenBucket;
     this.enableFallback = config?.enableFallback ?? true;
 
+    this.memoryStrategy = memoryStrategy ?? new MemoryRateLimitStrategy();
+    this.redisStrategy = redisStrategy ?? new RedisRateLimitStrategy(this.redis);
+    this.violationsService = violationsService ?? new ViolationsService(this.redis);
+    this.policyService = policyService ?? new PolicyService(this.redis);
+
     if (config?.endpointRules) {
-      this.endpointRules.push(...config.endpointRules);
+      for (const rule of config.endpointRules) {
+        this.policyService.addEndpointRule(rule);
+      }
     }
   }
-
-  // ==========================================
-  // Core Rate Limit Consumption
-  // ==========================================
 
   async consume(
     key: string,
@@ -164,13 +101,21 @@ export class RateLimiterService {
     };
 
     const storageKey = `${this.keyPrefix}${key}`;
-
     let decision: RateLimitDecision;
 
     if (this.redis && (await this.isRedisHealthy())) {
-      decision = await this.consumeRedis(storageKey, resolvedPolicy);
+      try {
+        decision = await this.redisStrategy.consume(storageKey, resolvedPolicy);
+      } catch (err: any) {
+        rateLimitErrorsTotal.inc({ operation: "consume", storage: "redis" });
+        this.logger.warn(
+          { error: err?.message, key },
+          "Redis rate-limit consume failed, falling back to memory",
+        );
+        decision = this.memoryStrategy.consume(storageKey, resolvedPolicy);
+      }
     } else {
-      decision = await this.consumeMemory(storageKey, resolvedPolicy);
+      decision = this.memoryStrategy.consume(storageKey, resolvedPolicy);
     }
 
     this.updateRegistry(
@@ -185,253 +130,28 @@ export class RateLimiterService {
     return decision;
   }
 
-  private async consumeRedis(
-    key: string,
-    policy: RateLimitPolicy,
-  ): Promise<RateLimitDecision> {
-    try {
-      const ratePerSec = policy.limit / (policy.windowMs / 1000);
-
-      let result: [number, number, number];
-
-      if (policy.strategy === RateLimitStrategy.SlidingWindow) {
-        // This is the *member* written into the sliding-window sorted set by
-        // SLIDING_WINDOW_LUA. It must be unique per request: a collision lets
-        // one request evict or double-count another client's window entry,
-        // which is a rate-limit bypass under load. `Date.now()` alone is not
-        // enough (many requests land in the same millisecond), so the suffix
-        // has to come from a CSPRNG.
-        const requestId = generateTimestampedId();
-        result = (await this.redis!.eval(
-          SLIDING_WINDOW_LUA,
-          1,
-          key,
-          policy.limit,
-          policy.windowMs,
-          Date.now(),
-          requestId,
-        )) as [number, number, number];
-      } else {
-        result = (await this.redis!.eval(
-          TOKEN_BUCKET_LUA,
-          1,
-          key,
-          policy.burst,
-          ratePerSec,
-          Date.now(),
-          1,
-        )) as [number, number, number];
-      }
-
-      const [allowed, remaining, retryAfterMs] = result;
-
-      let resetAt: number;
-      if (policy.strategy === RateLimitStrategy.SlidingWindow) {
-        resetAt =
-          retryAfterMs > 0
-            ? Date.now() + retryAfterMs
-            : Date.now() + policy.windowMs;
-      } else {
-        resetAt =
-          retryAfterMs > 0
-            ? Date.now() + retryAfterMs
-            : Date.now() +
-              Math.ceil(((policy.burst - remaining) / ratePerSec) * 1000);
-      }
-
-      return {
-        allowed: allowed === 1,
-        remaining: Math.max(0, remaining),
-        resetAt,
-        retryAfterMs: retryAfterMs > 0 ? retryAfterMs : undefined,
-      };
-    } catch (err: any) {
-      rateLimitErrorsTotal.inc({ operation: "consume", storage: "redis" });
-      this.logger.warn(
-        { error: err?.message, key },
-        "Redis rate-limit consume failed, falling back to memory",
-      );
-      return this.consumeMemory(key, policy);
-    }
-  }
-
-  private async consumeMemory(
-    key: string,
-    policy: RateLimitPolicy,
-  ): Promise<RateLimitDecision> {
-    const now = Date.now();
-
-    if (policy.strategy === RateLimitStrategy.SlidingWindow) {
-      return this.consumeMemorySlidingWindow(key, policy, now);
-    }
-
-    return this.consumeMemoryTokenBucket(key, policy, now);
-  }
-
-  private consumeMemoryTokenBucket(
-    key: string,
-    policy: RateLimitPolicy,
-    now: number,
-  ): RateLimitDecision {
-    const ratePerSec = policy.limit / (policy.windowMs / 1000);
-    const state = this.memoryBuckets.get(key);
-
-    let tokens = policy.burst;
-    let ts = now;
-
-    if (state) {
-      const elapsed = now - state.ts;
-      const refill = (elapsed * ratePerSec) / 1000;
-      tokens = Math.min(policy.burst, state.tokens + refill);
-      ts = now;
-    }
-
-    const allowed = tokens >= 1;
-    if (allowed) {
-      tokens -= 1;
-    }
-
-    this.memoryBuckets.set(key, { tokens, ts });
-
-    const remaining = Math.max(0, Math.floor(tokens));
-    let retryAfterMs: number | undefined;
-    let resetAt = now;
-
-    if (!allowed) {
-      retryAfterMs = Math.ceil(((1 - tokens) / ratePerSec) * 1000);
-      resetAt = now + retryAfterMs;
-    } else {
-      resetAt = now + Math.ceil(((policy.burst - tokens) / ratePerSec) * 1000);
-    }
-
-    return {
-      allowed,
-      remaining,
-      resetAt,
-      retryAfterMs,
-    };
-  }
-
-  private consumeMemorySlidingWindow(
-    key: string,
-    policy: RateLimitPolicy,
-    now: number,
-  ): RateLimitDecision {
-    const windowStart = now - policy.windowMs;
-    let entries = this.memoryWindows.get(key);
-    if (!entries) {
-      entries = [];
-      this.memoryWindows.set(key, entries);
-    }
-
-    entries = entries.filter((ts) => ts > windowStart);
-    this.memoryWindows.set(key, entries);
-
-    const count = entries.length;
-
-    if (count < policy.limit) {
-      entries.push(now);
-      const remaining = policy.limit - count - 1;
-      return {
-        allowed: true,
-        remaining: Math.max(0, remaining),
-        resetAt: now + policy.windowMs,
-      };
-    }
-
-    const oldest = entries[0] ?? now;
-    const retryAfterMs = Math.max(0, oldest + policy.windowMs - now);
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAt: oldest + policy.windowMs,
-      retryAfterMs,
-    };
-  }
-
-  // ==========================================
-  // Whitelist & Blacklist Management
-  // ==========================================
-
   async addWhitelist(
     entry: Omit<WhitelistEntry, "id" | "createdAt">,
   ): Promise<WhitelistEntry> {
-    const item: WhitelistEntry = {
-      id: `${entry.type}:${entry.value}`,
-      type: entry.type,
-      value: entry.value.trim().toLowerCase(),
-      reason: entry.reason,
-      createdAt: Date.now(),
-      expiresAt: entry.expiresAt,
-    };
-
-    this.memoryWhitelist.set(item.id, item);
-
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        await this.redis.hset(
-          `${this.keyPrefix}whitelist`,
-          item.id,
-          JSON.stringify(item),
-        );
-      } catch (err: any) {
-        this.logger.warn(
-          { error: err?.message },
-          "Failed to persist whitelist to Redis",
-        );
-      }
-    }
-
-    return item;
+    return this.policyService.addWhitelist(
+      entry,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async removeWhitelist(value: string): Promise<boolean> {
-    const norm = value.trim().toLowerCase();
-    let removed = false;
-
-    for (const [id, entry] of this.memoryWhitelist.entries()) {
-      if (entry.value === norm || id === value) {
-        this.memoryWhitelist.delete(id);
-        removed = true;
-      }
-    }
-
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        await this.redis.hdel(`${this.keyPrefix}whitelist`, value, norm);
-      } catch (err: any) {
-        this.logger.warn(
-          { error: err?.message },
-          "Failed to remove whitelist from Redis",
-        );
-      }
-    }
-
-    return removed;
+    return this.policyService.removeWhitelist(
+      value,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async listWhitelist(): Promise<WhitelistEntry[]> {
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        const raw = await this.redis.hgetall(`${this.keyPrefix}whitelist`);
-        const result: WhitelistEntry[] = [];
-        const now = Date.now();
-        for (const str of Object.values(raw)) {
-          const parsed: WhitelistEntry = JSON.parse(str);
-          if (!parsed.expiresAt || parsed.expiresAt > now) {
-            result.push(parsed);
-            this.memoryWhitelist.set(parsed.id, parsed);
-          }
-        }
-        return result;
-      } catch {
-        // fall back to memory
-      }
-    }
-
-    const now = Date.now();
-    return Array.from(this.memoryWhitelist.values()).filter(
-      (e) => !e.expiresAt || e.expiresAt > now,
+    return this.policyService.listWhitelist(
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
     );
   }
 
@@ -441,117 +161,38 @@ export class RateLimiterService {
     key?: string,
     path?: string,
   ): Promise<boolean> {
-    const list = await this.listWhitelist();
-    const now = Date.now();
-
-    for (const entry of list) {
-      if (entry.expiresAt && entry.expiresAt <= now) continue;
-
-      if (ip && entry.type === "ip") {
-        if (
-          entry.value === ip.toLowerCase() ||
-          entry.value === "*" ||
-          this.matchIpPattern(ip, entry.value)
-        ) {
-          return true;
-        }
-      }
-
-      if (userId && entry.type === "user") {
-        if (entry.value === String(userId).toLowerCase()) return true;
-      }
-
-      if (key && entry.type === "key") {
-        if (entry.value === String(key).toLowerCase()) return true;
-      }
-
-      if (path && entry.type === "path") {
-        if (this.matchPathPattern(path, entry.value)) return true;
-      }
-    }
-
-    return false;
+    return this.policyService.isWhitelisted(
+      ip,
+      userId,
+      key,
+      path,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async addBlacklist(
     entry: Omit<BlacklistEntry, "id" | "createdAt">,
   ): Promise<BlacklistEntry> {
-    const item: BlacklistEntry = {
-      id: `${entry.type}:${entry.value}`,
-      type: entry.type,
-      value: entry.value.trim().toLowerCase(),
-      reason: entry.reason,
-      createdAt: Date.now(),
-      expiresAt: entry.expiresAt,
-    };
-
-    this.memoryBlacklist.set(item.id, item);
-
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        await this.redis.hset(
-          `${this.keyPrefix}blacklist`,
-          item.id,
-          JSON.stringify(item),
-        );
-      } catch (err: any) {
-        this.logger.warn(
-          { error: err?.message },
-          "Failed to persist blacklist to Redis",
-        );
-      }
-    }
-
-    return item;
+    return this.policyService.addBlacklist(
+      entry,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async removeBlacklist(value: string): Promise<boolean> {
-    const norm = value.trim().toLowerCase();
-    let removed = false;
-
-    for (const [id, entry] of this.memoryBlacklist.entries()) {
-      if (entry.value === norm || id === value) {
-        this.memoryBlacklist.delete(id);
-        removed = true;
-      }
-    }
-
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        await this.redis.hdel(`${this.keyPrefix}blacklist`, value, norm);
-      } catch (err: any) {
-        this.logger.warn(
-          { error: err?.message },
-          "Failed to remove blacklist from Redis",
-        );
-      }
-    }
-
-    return removed;
+    return this.policyService.removeBlacklist(
+      value,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async listBlacklist(): Promise<BlacklistEntry[]> {
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        const raw = await this.redis.hgetall(`${this.keyPrefix}blacklist`);
-        const result: BlacklistEntry[] = [];
-        const now = Date.now();
-        for (const str of Object.values(raw)) {
-          const parsed: BlacklistEntry = JSON.parse(str);
-          if (!parsed.expiresAt || parsed.expiresAt > now) {
-            result.push(parsed);
-            this.memoryBlacklist.set(parsed.id, parsed);
-          }
-        }
-        return result;
-      } catch {
-        // fall back to memory
-      }
-    }
-
-    const now = Date.now();
-    return Array.from(this.memoryBlacklist.values()).filter(
-      (e) => !e.expiresAt || e.expiresAt > now,
+    return this.policyService.listBlacklist(
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
     );
   }
 
@@ -560,89 +201,23 @@ export class RateLimiterService {
     userId?: string,
     key?: string,
   ): Promise<boolean> {
-    const list = await this.listBlacklist();
-    const now = Date.now();
-
-    for (const entry of list) {
-      if (entry.expiresAt && entry.expiresAt <= now) continue;
-
-      if (ip && entry.type === "ip") {
-        if (
-          entry.value === ip.toLowerCase() ||
-          this.matchIpPattern(ip, entry.value)
-        ) {
-          return true;
-        }
-      }
-
-      if (userId && entry.type === "user") {
-        if (entry.value === String(userId).toLowerCase()) return true;
-      }
-
-      if (key && entry.type === "key") {
-        if (entry.value === String(key).toLowerCase()) return true;
-      }
-    }
-
-    return false;
+    return this.policyService.isBlacklisted(
+      ip,
+      userId,
+      key,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
-
-  private matchIpPattern(ip: string, pattern: string): boolean {
-    if (pattern === ip) return true;
-    if (pattern.endsWith("*")) {
-      const prefix = pattern.slice(0, -1);
-      return ip.startsWith(prefix);
-    }
-    return false;
-  }
-
-  private matchPathPattern(path: string, pattern: string): boolean {
-    if (pattern === path || pattern === "*") return true;
-    if (pattern.endsWith("*")) {
-      const prefix = pattern.slice(0, -1);
-      return path.startsWith(prefix);
-    }
-    return false;
-  }
-
-  // ==========================================
-  // Violation Reporting & Analytics
-  // ==========================================
 
   async recordViolation(
     violation: Omit<RateLimitViolation, "id" | "timestamp">,
   ): Promise<RateLimitViolation> {
-    const record: RateLimitViolation = {
-      ...violation,
-      // The id is returned to clients through the rate-limiting API and
-      // persisted into the audit trail (Redis list + in-memory ring buffer),
-      // so it must not collide: two violations recorded in the same
-      // millisecond used to be able to share an id.
-      id: generateTimestampedId(),
-      timestamp: Date.now(),
-    };
-
-    this.memoryViolations.unshift(record);
-    if (this.memoryViolations.length > 2000) {
-      this.memoryViolations.length = 2000;
-    }
-
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        await this.redis.lpush(
-          `${this.keyPrefix}violations`,
-          JSON.stringify(record),
-        );
-        await this.redis.ltrim(`${this.keyPrefix}violations`, 0, 1999);
-      } catch (err: any) {
-        this.logger.warn(
-          { error: err?.message },
-          "Failed to store violation in Redis",
-        );
-      }
-    }
-
-    return record;
+    return this.violationsService.recordViolation(
+      violation,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async getViolations(filter?: {
@@ -653,118 +228,31 @@ export class RateLimiterService {
     limit?: number;
     since?: number;
   }): Promise<RateLimitViolation[]> {
-    let list: RateLimitViolation[] = [];
-
-    if (this.redis && (await this.isRedisHealthy())) {
-      try {
-        const raw = await this.redis.lrange(
-          `${this.keyPrefix}violations`,
-          0,
-          filter?.limit ? Math.min(filter.limit * 2, 500) : 500,
-        );
-        list = raw.map((r) => JSON.parse(r));
-      } catch {
-        list = [...this.memoryViolations];
-      }
-    } else {
-      list = [...this.memoryViolations];
-    }
-
-    const since = filter?.since ?? 0;
-    let filtered = list.filter((v) => v.timestamp >= since);
-
-    if (filter?.tracker) {
-      filtered = filtered.filter((v) => v.tracker === filter.tracker);
-    }
-    if (filter?.ip) {
-      filtered = filtered.filter((v) => v.ip === filter.ip);
-    }
-    if (filter?.userId) {
-      filtered = filtered.filter((v) => v.userId === filter.userId);
-    }
-    if (filter?.route) {
-      filtered = filtered.filter((v) => v.route.includes(filter.route!));
-    }
-
-    const limit = filter?.limit ?? 100;
-    return filtered.slice(0, limit);
+    return this.violationsService.getViolations(
+      filter,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
   async getAnalytics(sinceMs = 3600_000): Promise<RateLimitAnalytics> {
-    const since = Date.now() - sinceMs;
-    const violations = await this.getViolations({ since, limit: 2000 });
-
-    const violatorCounts: Record<string, number> = {};
-    const routeCounts: Record<string, number> = {};
-    const tierCounts: Record<string, number> = {};
-    const strategyCounts: Record<string, number> = {};
-    const timeBuckets: Record<string, number> = {};
-
-    for (const v of violations) {
-      const trackerKey = v.tracker || v.ip || "unknown";
-      violatorCounts[trackerKey] = (violatorCounts[trackerKey] ?? 0) + 1;
-      routeCounts[v.route] = (routeCounts[v.route] ?? 0) + 1;
-      tierCounts[v.tier] = (tierCounts[v.tier] ?? 0) + 1;
-      strategyCounts[v.strategy] = (strategyCounts[v.strategy] ?? 0) + 1;
-
-      // Group into 5-minute buckets
-      const bucket = new Date(
-        Math.floor(v.timestamp / 300_000) * 300_000,
-      ).toISOString();
-      timeBuckets[bucket] = (timeBuckets[bucket] ?? 0) + 1;
-    }
-
-    const topViolators = Object.entries(violatorCounts)
-      .map(([tracker, count]) => ({ tracker, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    const topRoutes = Object.entries(routeCounts)
-      .map(([route, count]) => ({ route, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    const timeSeries = Object.entries(timeBuckets)
-      .map(([time, count]) => ({ time, count }))
-      .sort((a, b) => a.time.localeCompare(b.time));
-
-    return {
-      timestamp: new Date().toISOString(),
-      totalViolations: violations.length,
-      uniqueViolators: Object.keys(violatorCounts).length,
-      topViolators,
-      topRoutes,
-      violationsByTier: tierCounts,
-      violationsByStrategy: strategyCounts,
-      timeSeries,
-    };
+    return this.violationsService.getAnalytics(
+      sinceMs,
+      this.keyPrefix,
+      () => this.isRedisHealthy(),
+    );
   }
 
-  // ==========================================
-  // Endpoint-Level Configuration
-  // ==========================================
-
   addEndpointRule(rule: EndpointRateLimitRule): void {
-    this.endpointRules.push(rule);
+    this.policyService.addEndpointRule(rule);
   }
 
   getEndpointRule(
     path: string,
     method?: string,
   ): EndpointRateLimitRule | undefined {
-    return this.endpointRules.find((rule) => {
-      const methodMatch =
-        !rule.method ||
-        rule.method === "*" ||
-        rule.method.toUpperCase() === method?.toUpperCase();
-      const pathMatch = this.matchPathPattern(path, rule.pathPattern);
-      return methodMatch && pathMatch;
-    });
+    return this.policyService.getEndpointRule(path, method);
   }
-
-  // ==========================================
-  // Entry & Storage State Queries
-  // ==========================================
 
   async getEntry(key: string): Promise<RateLimitEntry | null> {
     const entry = this.registry.get(key);
@@ -777,14 +265,14 @@ export class RateLimiterService {
       try {
         if (entry.strategy === RateLimitStrategy.SlidingWindow) {
           const windowStart = Date.now() - entry.windowMs;
-          const count = await this.redis!.zcount(
+          const count = await this.redis.zcount(
             `${this.keyPrefix}${key}`,
             windowStart,
             "+inf",
           );
           remaining = Math.max(0, entry.limit - count);
         } else {
-          const data = await this.redis!.hgetall(`${this.keyPrefix}${key}`);
+          const data = await this.redis.hgetall(`${this.keyPrefix}${key}`);
           const tokens = parseFloat(data.tokens ?? "0");
           remaining = Math.max(0, Math.floor(tokens));
         }
@@ -816,7 +304,7 @@ export class RateLimiterService {
   async reset(key: string): Promise<boolean> {
     if (this.redis && (await this.isRedisHealthy())) {
       try {
-        await this.redis!.del(`${this.keyPrefix}${key}`);
+        await this.redis.del(`${this.keyPrefix}${key}`);
         this.registry.delete(key);
         return true;
       } catch {
@@ -824,8 +312,7 @@ export class RateLimiterService {
       }
     }
 
-    this.memoryBuckets.delete(`${this.keyPrefix}${key}`);
-    this.memoryWindows.delete(`${this.keyPrefix}${key}`);
+    this.memoryStrategy.reset(`${this.keyPrefix}${key}`);
     this.registry.delete(key);
     return true;
   }

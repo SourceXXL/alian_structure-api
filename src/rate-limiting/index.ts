@@ -4,6 +4,11 @@ export type { RateLimitConfig } from "./rate-limiter.service";
 export { DistributedRateLimitGuard } from "./rate-limiting.guard";
 export { RateLimitMiddleware } from "./rate-limit.middleware";
 export { RateLimitingController } from "./rate-limiting.controller";
+export { MemoryRateLimitStrategy } from "./strategies/memory-rate-limit.strategy";
+export { RedisRateLimitStrategy } from "./strategies/redis-rate-limit.strategy";
+export { IRateLimitStrategy } from "./strategies/rate-limit-strategy.interface";
+export { ViolationsService } from "./violations/violations.service";
+export { PolicyService } from "./policies/policy.service";
 export {
   RateLimitStrategy,
   RateLimitPolicy,
