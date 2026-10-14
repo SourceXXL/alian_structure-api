@@ -6,6 +6,10 @@ import { RateLimitMiddleware } from "./rate-limit.middleware";
 import { RateLimitingController } from "./rate-limiting.controller";
 import { RATE_LIMIT_CONFIG } from "./rate-limiting.constants";
 import { RateLimitStrategy } from "./interfaces";
+import { MemoryRateLimitStrategy } from "./strategies/memory-rate-limit.strategy";
+import { RedisRateLimitStrategy } from "./strategies/redis-rate-limit.strategy";
+import { ViolationsService } from "./violations/violations.service";
+import { PolicyService } from "./policies/policy.service";
 
 @Global()
 @Module({})
@@ -34,11 +38,19 @@ export class RateLimitingModule implements OnModuleInit {
             endpointRules: options?.endpointRules,
           }),
         },
+        MemoryRateLimitStrategy,
+        RedisRateLimitStrategy,
+        ViolationsService,
+        PolicyService,
         RateLimiterService,
         DistributedRateLimitGuard,
         RateLimitMiddleware,
       ],
       exports: [
+        MemoryRateLimitStrategy,
+        RedisRateLimitStrategy,
+        ViolationsService,
+        PolicyService,
         RateLimiterService,
         DistributedRateLimitGuard,
         RateLimitMiddleware,
