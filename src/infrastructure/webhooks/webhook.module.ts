@@ -15,6 +15,7 @@ import { WebhookEventService } from "./services/webhook-event.service";
 import { WebhookDeliveryService } from "./services/webhook-delivery.service";
 import { WebhookHmacService } from "./services/webhook-hmac.service";
 import { WebhookProcessor } from "./services/webhook-processor.service";
+import { WebhookUrlValidatorService } from "./services/webhook-url-validator.service";
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { WebhookProcessor } from "./services/webhook-processor.service";
   ],
   controllers: [WebhookController],
   providers: [
+    WebhookUrlValidatorService,
     WebhookSubscriptionService,
     WebhookEventService,
     WebhookDeliveryService,
@@ -52,6 +54,7 @@ import { WebhookProcessor } from "./services/webhook-processor.service";
     WebhookProcessor,
   ],
   exports: [
+    WebhookUrlValidatorService,
     WebhookEventService,
     WebhookDeliveryService,
     WebhookSubscriptionService,

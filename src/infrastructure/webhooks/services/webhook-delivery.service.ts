@@ -1,8 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { HttpService } from "@nestjs/axios";
 import { firstValueFrom } from "rxjs";
+import * as http from "http";
+import * as https from "https";
 import {
   WebhookDelivery,
   WebhookDeliveryStatus,
@@ -14,6 +16,10 @@ import {
 } from "../entities/webhook-subscription.entity";
 import { WebhookEvent } from "../entities/webhook-event.entity";
 import { WebhookHmacService } from "./webhook-hmac.service";
+import { WebhookUrlValidatorService } from "./webhook-url-validator.service";
+
+const MAX_STORED_RESPONSE_BODY_CHARS = 512;
+const OUTBOUND_WINDOW_MS = 60_000;
 
 export interface DeliveryResult {
   statusCode?: number;
@@ -39,6 +45,8 @@ export interface WebhookMetrics {
 @Injectable()
 export class WebhookDeliveryService {
   private readonly logger = new Logger(WebhookDeliveryService.name);
+  private readonly urlValidator: WebhookUrlValidatorService;
+  private readonly deliveryWindows = new Map<string, number[]>();
 
   constructor(
     @InjectRepository(WebhookDelivery)
@@ -51,7 +59,41 @@ export class WebhookDeliveryService {
     private readonly subscriptionRepo: Repository<WebhookSubscription>,
     private readonly httpService: HttpService,
     private readonly hmacService: WebhookHmacService,
-  ) {}
+    @Optional() urlValidator?: WebhookUrlValidatorService,
+  ) {
+    this.urlValidator = urlValidator ?? new WebhookUrlValidatorService();
+  }
+
+  /**
+   * Enforce per-subscription outbound delivery rate limit (sliding 60s window).
+   */
+  private consumeOutboundRateLimit(subscription: WebhookSubscription): boolean {
+    const limit = subscription.rateLimitPerMinute ?? 10;
+    if (limit <= 0) return false;
+    const now = Date.now();
+    const cutoff = now - OUTBOUND_WINDOW_MS;
+    const recent = (this.deliveryWindows.get(subscription.id) || []).filter(
+      (t) => t > cutoff,
+    );
+    if (recent.length >= limit) {
+      this.deliveryWindows.set(subscription.id, recent);
+      return false;
+    }
+    recent.push(now);
+    this.deliveryWindows.set(subscription.id, recent);
+    return true;
+  }
+
+  private sanitizeResponseBody(data: unknown): string | undefined {
+    if (data === undefined || data === null) return undefined;
+    const raw =
+      typeof data === "string" ? data : JSON.stringify(data) ?? String(data);
+    const truncated =
+      raw.length > MAX_STORED_RESPONSE_BODY_CHARS
+        ? `${raw.slice(0, MAX_STORED_RESPONSE_BODY_CHARS)}...[truncated]`
+        : raw;
+    return truncated;
+  }
 
   /**
    * Create delivery records for an event against all matching subscriptions.
@@ -75,7 +117,8 @@ export class WebhookDeliveryService {
   }
 
   /**
-   * Execute a single delivery attempt with HMAC signing.
+   * Execute a single delivery attempt with HMAC signing, delivery-time SSRF
+   * re-resolution, redirect blocking, and outbound rate limiting.
    */
   async executeDelivery(delivery: WebhookDelivery): Promise<DeliveryResult> {
     const subscription = await this.subscriptionRepo.findOne({
@@ -88,6 +131,27 @@ export class WebhookDeliveryService {
       return {
         durationMs: 0,
         error: "Subscription or event not found",
+      };
+    }
+
+    // Re-validate and re-resolve URL at delivery time to prevent DNS rebinding
+    let validatedTarget;
+    try {
+      validatedTarget = await this.urlValidator.validateWebhookUrl(
+        subscription.url,
+      );
+    } catch (err: any) {
+      return {
+        durationMs: 0,
+        error: `SSRF validation failed: ${err.message || "Blocked webhook destination"}`,
+      };
+    }
+
+    // Outbound rate limit check per subscription
+    if (!this.consumeOutboundRateLimit(subscription)) {
+      return {
+        durationMs: 0,
+        error: `Outbound rate limit exceeded (${subscription.rateLimitPerMinute ?? 10}/min)`,
       };
     }
 
@@ -114,28 +178,62 @@ export class WebhookDeliveryService {
     delivery.lastAttemptAt = new Date();
     await this.deliveryRepo.save(delivery);
 
+    // Pin the socket lookup to the validated DNS record so a second lookup
+    // inside Node's HTTP agent cannot rebind to a private IP.
+    const pinned = validatedTarget.resolvedAddresses[0];
+    const lookup = pinned
+      ? (
+          _hostname: string,
+          options: any,
+          cb: (err: NodeJS.ErrnoException | null, address: any, family?: number) => void,
+        ) => {
+          if (typeof options === "function") {
+            options(null, pinned.address, pinned.family);
+            return;
+          }
+          if (options && options.all) {
+            cb(null, [{ address: pinned.address, family: pinned.family }]);
+            return;
+          }
+          cb(null, pinned.address, pinned.family);
+        }
+      : undefined;
+
+    const httpAgent = lookup ? new http.Agent({ lookup }) : undefined;
+    const httpsAgent = lookup ? new https.Agent({ lookup }) : undefined;
+
     const startTime = Date.now();
     try {
       const response = await firstValueFrom(
         this.httpService.post(subscription.url, payload, {
           headers,
           timeout: subscription.timeoutMs || 30000,
-          validateStatus: () => true, // Don't throw for 4xx/5xx
+          maxRedirects: 0, // Never follow redirects to prevent 302-to-internal SSRF
+          httpAgent,
+          httpsAgent,
+          validateStatus: () => true, // Don't throw for 3xx/4xx/5xx
         }),
       );
 
       const durationMs = Date.now() - startTime;
       const statusCode = response.status;
-      const responseBody =
-        typeof response.data === "string"
-          ? response.data.substring(0, 10000)
-          : JSON.stringify(response.data).substring(0, 10000);
+      const responseBody = this.sanitizeResponseBody(response.data);
 
       const respHeaders: Record<string, string> = {};
       if (response.headers) {
         for (const [k, v] of Object.entries(response.headers)) {
           if (typeof v === "string") respHeaders[k] = v;
         }
+      }
+
+      if (statusCode >= 300 && statusCode < 400) {
+        return {
+          statusCode,
+          responseBody,
+          durationMs,
+          responseHeaders: respHeaders,
+          error: `Redirect responses (HTTP ${statusCode}) are not allowed for webhook deliveries`,
+        };
       }
 
       const isSuccess = statusCode >= 200 && statusCode < 300;
@@ -309,16 +407,23 @@ export class WebhookDeliveryService {
   }
 
   /**
-   * Reattempt a dead-lettered delivery.
+   * Reattempt a dead-lettered delivery, scoped to the owning user when provided.
    */
-  async retryDeadLetter(deadLetterId: string): Promise<WebhookDelivery | null> {
-    const dl = await this.deadLetterRepo.findOne({
-      where: { id: deadLetterId },
-    });
+  async retryDeadLetter(
+    deadLetterId: string,
+    userId?: string,
+  ): Promise<WebhookDelivery | null> {
+    const where: any = { id: deadLetterId };
+    if (userId) {
+      where.userId = userId;
+    }
+    const dl = await this.deadLetterRepo.findOne({ where });
     if (!dl || dl.retried) return null;
 
     const subscription = await this.subscriptionRepo.findOne({
-      where: { id: dl.subscriptionId },
+      where: userId
+        ? { id: dl.subscriptionId, userId }
+        : { id: dl.subscriptionId },
     });
     if (
       !subscription ||

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { randomBytes } from "crypto";
@@ -10,20 +15,26 @@ import {
   CreateWebhookSubscriptionDto,
   UpdateWebhookSubscriptionDto,
 } from "../dto/webhook.dto";
+import { WebhookUrlValidatorService } from "./webhook-url-validator.service";
 
 @Injectable()
 export class WebhookSubscriptionService {
   private readonly logger = new Logger(WebhookSubscriptionService.name);
+  private readonly urlValidator: WebhookUrlValidatorService;
 
   constructor(
     @InjectRepository(WebhookSubscription)
     private readonly subscriptionRepo: Repository<WebhookSubscription>,
-  ) {}
+    @Optional() urlValidator?: WebhookUrlValidatorService,
+  ) {
+    this.urlValidator = urlValidator ?? new WebhookUrlValidatorService();
+  }
 
   async create(
     userId: string,
     dto: CreateWebhookSubscriptionDto,
   ): Promise<WebhookSubscription & { signingKey: string }> {
+    await this.urlValidator.validateWebhookUrl(dto.url);
     const signingKey = this.generateSigningKey();
     const subscription = this.subscriptionRepo.create({
       userId,
@@ -42,7 +53,7 @@ export class WebhookSubscriptionService {
     });
     const saved = await this.subscriptionRepo.save(subscription);
     this.logger.log(
-      `Webhook subscription created: ${saved.id} for user ${userId}, url=${dto.url}`,
+      `Webhook subscription created: ${saved.id} for user ${userId}`,
     );
     return { ...saved, signingKey };
   }
@@ -93,6 +104,9 @@ export class WebhookSubscriptionService {
     dto: UpdateWebhookSubscriptionDto,
   ): Promise<WebhookSubscription> {
     const sub = await this.findOne(id, userId);
+    if (dto.url !== undefined) {
+      await this.urlValidator.validateWebhookUrl(dto.url);
+    }
     Object.assign(sub, dto);
     const saved = await this.subscriptionRepo.save(sub);
     this.logger.log(`Webhook subscription updated: ${id}`);

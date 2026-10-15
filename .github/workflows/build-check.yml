@@ -28,12 +28,13 @@ jobs:
       - name: Run TypeScript check
         run: npx tsc --noEmit
 
-      - name: Test GraphQL gateway and cursor pagination
+      - name: Test GraphQL gateway, cursor pagination, and webhooks
         run: >-
           npm test -- --runInBand
           src/graphql
           src/discovery/reviews/agent-reviews.service.spec.ts
           src/common/pagination/cursor-pagination.service.spec.ts
+          src/infrastructure/webhooks
 
       - name: Build project
         run: npm run build
