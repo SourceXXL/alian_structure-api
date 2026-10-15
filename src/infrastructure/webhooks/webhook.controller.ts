@@ -236,8 +236,14 @@ export class WebhookController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Retry a dead-lettered delivery" })
   @ApiParam({ name: "id" })
-  async retryDeadLetter(@Param("id") id: string) {
-    const delivery = await this.deliveryService.retryDeadLetter(id);
+  async retryDeadLetter(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const delivery = await this.deliveryService.retryDeadLetter(id, user.id);
     if (!delivery) {
       return { success: false, message: "Dead letter not found or already retried" };
     }
@@ -248,8 +254,11 @@ export class WebhookController {
 
   @Get("metrics")
   @ApiOperation({ summary: "Get webhook delivery metrics and reliability stats" })
-  async getMetrics() {
-    const metrics = await this.deliveryService.getMetrics();
+  async getMetrics(@CurrentUser() user: AuthUser) {
+    if (!user?.id) {
+      throw new BadRequestException("User identity not found in request");
+    }
+    const metrics = await this.deliveryService.getMetrics(user.id);
     return { success: true, metrics };
   }
 }
